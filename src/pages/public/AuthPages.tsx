@@ -47,7 +47,7 @@ export function LoginPage() {
 
           <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-6">
             <div>
-              <h1 className="text-2xl font-bold text-[#1A1B25]">Sign in to BookAm</h1>
+              <h1 className="text-2xl font-bold text-[#1A1B25]">Sign in to FixIt</h1>
               <p className="text-sm text-[#6B7280] mt-1">
                 Access your customer jobs, worker offers, and bookings.
               </p>
@@ -104,7 +104,7 @@ export function LoginPage() {
             </form>
 
             <div className="text-center text-xs text-[#6B7280] pt-2 border-t border-slate-100">
-              New to BookAm?{' '}
+              New to FixIt?{' '}
               <Link to="/signup" className="font-semibold text-[#635BFF] hover:text-[#4A44C6]">
                 Create an account
               </Link>
@@ -180,7 +180,7 @@ export function SignupPage() {
 
           <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-6">
             <div>
-              <h1 className="text-2xl font-bold text-[#1A1B25]">Create your BookAm account</h1>
+              <h1 className="text-2xl font-bold text-[#1A1B25]">Create your FixIt account</h1>
               <p className="text-sm text-[#6B7280] mt-1">
                 One account lets you hire professionals or offer skilled services.
               </p>

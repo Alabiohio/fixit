@@ -1,4 +1,4 @@
--- BookAm Row Level Security (RLS), Contact Protection, Atomic RPCs & Realtime
+-- FixIt Row Level Security (RLS), Contact Protection, Atomic RPCs & Realtime
 
 -- Enable RLS on all tables
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -246,17 +246,17 @@ END $$;
 
 -- Storage bucket for optional job reference images & worker avatars
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('bookam-uploads', 'bookam-uploads', TRUE)
+VALUES ('FixIt-uploads', 'FixIt-uploads', TRUE)
 ON CONFLICT (id) DO NOTHING;
 
-DROP POLICY IF EXISTS "Public read access for bookam uploads" ON storage.objects;
-CREATE POLICY "Public read access for bookam uploads" ON storage.objects
-  FOR SELECT USING (bucket_id = 'bookam-uploads');
+DROP POLICY IF EXISTS "Public read access for FixIt uploads" ON storage.objects;
+CREATE POLICY "Public read access for FixIt uploads" ON storage.objects
+  FOR SELECT USING (bucket_id = 'FixIt-uploads');
 
 DROP POLICY IF EXISTS "Authenticated users upload to own folder" ON storage.objects;
 CREATE POLICY "Authenticated users upload to own folder" ON storage.objects
   FOR INSERT WITH CHECK (
-    bucket_id = 'bookam-uploads'
+    bucket_id = 'FixIt-uploads'
     AND auth.role() = 'authenticated'
     AND (storage.foldername(name))[1] = auth.uid()::text
   );

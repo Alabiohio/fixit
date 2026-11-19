@@ -15,7 +15,7 @@ import type {
   PriceEstimateResult,
   UnderstandJobResult,
   ValidateJobResult,
-} from '../../types/bookam';
+} from '../../types/FixIt';
 
 export function PostJobPage() {
   const navigate = useNavigate();
@@ -210,7 +210,7 @@ export function PostJobPage() {
         <div>
           <h1 className="text-2xl font-bold text-[#1A1B25]">Post a service request</h1>
           <p className="text-sm text-[#6B7280] mt-1">
-            Describe what you need in plain language. BookAm Intelligence will extract the details for your review and confirmation before publishing.
+            Describe what you need in plain language. FixIt Intelligence will extract the details for your review and confirmation before publishing.
           </p>
         </div>
 

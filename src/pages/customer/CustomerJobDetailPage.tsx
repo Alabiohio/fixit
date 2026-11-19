@@ -5,7 +5,7 @@ import { AppShell } from '../../components/AppShell';
 import { PriceEstimateCard } from '../../components/PriceEstimateCard';
 import { apiRequest } from '../../lib/api';
 import { formatNaira } from '../../../shared/constants';
-import type { Booking, Job, Offer, OfferAnalysisResult } from '../../types/bookam';
+import type { Booking, Job, Offer, OfferAnalysisResult } from '../../types/FixIt';
 
 export function CustomerJobDetailPage() {
   const { id } = useParams();
@@ -281,7 +281,7 @@ export function CustomerJobDetailPage() {
               {analysis && (
                 <div className="bg-[#F6F7FB] rounded-xl border border-slate-200 p-4 space-y-3">
                   <div className="text-xs font-semibold text-[#635BFF]">
-                    BookAm Intelligence · Offer Comparison
+                    FixIt Intelligence · Offer Comparison
                   </div>
                   <p className="text-sm text-[#1A1B25] leading-relaxed">{analysis.summary}</p>
                   <div className="space-y-2">
@@ -326,7 +326,7 @@ export function CustomerJobDetailPage() {
                         <div className="space-y-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="text-sm font-bold text-[#1A1B25]">
-                              {offer.worker?.full_name || 'BookAm Professional'}
+                              {offer.worker?.full_name || 'FixIt Professional'}
                             </span>
                             <span className="text-xs text-[#6B7280]">
                               · {offer.worker?.service_categories?.join(', ') || job.category}

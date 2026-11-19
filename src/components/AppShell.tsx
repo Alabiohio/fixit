@@ -201,7 +201,7 @@ export function AppShell({ mode, title, children }: AppShellProps) {
           <div className="p-5 border-b border-slate-100">
             <div className="text-xs text-[#6B7280]">Signed in as</div>
             <div className="text-sm font-semibold text-[#1A1B25] truncate mt-0.5">
-              {profile?.full_name || profile?.email || 'BookAm Account'}
+              {profile?.full_name || profile?.email || 'FixIt Account'}
             </div>
             <div className="text-xs text-[#6B7280] mt-1">
               {profile?.city || 'Benin City'} · {mode === 'customer' ? 'Customer view' : 'Worker view'}

@@ -6,7 +6,7 @@ import { SetupNotice } from '../../components/SetupNotice';
 import { useAuth } from '../../context/AuthContext';
 import { apiRequest } from '../../lib/api';
 import { formatNaira } from '../../../shared/constants';
-import type { Booking, Job, Offer } from '../../types/bookam';
+import type { Booking, Job, Offer } from '../../types/FixIt';
 
 export function WorkerDashboardPage() {
   const { profile, workerProfile, workerStats } = useAuth();

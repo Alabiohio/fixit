@@ -1,4 +1,4 @@
-# BookAm — AI-Powered Local Services Marketplace
+# FixIt — AI-Powered Local Services Marketplace
 
 **Tagline:** Find help. Compare offers. Book with confidence.  
 **Initial Target Market:** Benin City, Edo State, Nigeria (structured to expand to additional cities and categories).
@@ -10,7 +10,7 @@
 - **Frontend:** React 19 + TypeScript + Tailwind CSS v4 + React Router + Lucide Icons
 - **Backend Server:** Node.js + Express (`server.ts`, port `3000`) serving both API routes and Vite/built static assets
 - **Database, Auth, Storage & Realtime:** Supabase (PostgreSQL, Row Level Security, Auth, Storage, Realtime notifications)
-- **AI Engine (`BookAm Intelligence`):** Server-side Groq SDK (`groq-sdk`) with `GROQ_MODEL` env var and strict `zod` response validation + manual fallback
+- **AI Engine (`FixIt Intelligence`):** Server-side Groq SDK (`groq-sdk`) with `GROQ_MODEL` env var and strict `zod` response validation + manual fallback
 - **Payments:** Stripe Checkout (test mode) + signed Stripe Webhooks (`POST /api/stripe/webhook`) with idempotent payment/booking updates
 - **Contact Protection:** Phone numbers are never returned in public job, offer, or booking list payloads; `GET /api/bookings/:id/contact` releases phone numbers only after `payment_status === 'paid'`.
 
@@ -29,20 +29,20 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 GROQ_API_KEY=your-groq-api-key
-GROQ_MODEL=llama-3.3-70b-versatile
+GROQ_MODEL=openai/gpt-oss-120b
 
 STRIPE_SECRET_KEY=sk_test_...
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 
-BOOKAM_DEFAULT_CURRENCY=ngn
-BOOKAM_DEFAULT_DEPOSIT=2000
-BOOKAM_STRIPE_FALLBACK_CURRENCY=usd
-BOOKAM_NGN_PER_USD_TEST_RATE=1600
+FixIt_DEFAULT_CURRENCY=ngn
+FixIt_DEFAULT_DEPOSIT=2000
+FixIt_STRIPE_FALLBACK_CURRENCY=usd
+FixIt_NGN_PER_USD_TEST_RATE=1600
 ```
 
 > **Note on NGN Currency Support in Stripe Test Accounts:**  
-> Not all Stripe test accounts have NGN enabled as a Checkout settlement currency. BookAm attempts `BOOKAM_DEFAULT_CURRENCY` (`ngn`) first; if Stripe rejects NGN for the test account, it transparently converts the deposit to `BOOKAM_STRIPE_FALLBACK_CURRENCY` (`usd`) using `BOOKAM_NGN_PER_USD_TEST_RATE` and records the exact conversion note on the `payments` row and booking UI.
+> Not all Stripe test accounts have NGN enabled as a Checkout settlement currency. FixIt attempts `FixIt_DEFAULT_CURRENCY` (`ngn`) first; if Stripe rejects NGN for the test account, it transparently converts the deposit to `FixIt_STRIPE_FALLBACK_CURRENCY` (`usd`) using `FixIt_NGN_PER_USD_TEST_RATE` and records the exact conversion note on the `payments` row and booking UI.
 
 ---
 
@@ -51,7 +51,7 @@ BOOKAM_NGN_PER_USD_TEST_RATE=1600
 1. Create a new Supabase project.
 2. Open the **SQL Editor** in your Supabase Dashboard (or use the Supabase CLI).
 3. Run the migrations in order:
-   - `supabase/migrations/001_bookam_schema.sql`
+   - `supabase/migrations/001_FixIt_schema.sql`
    - `supabase/migrations/002_rls_and_rpc.sql`
 4. In Supabase **Authentication -> Providers**, ensure Email/Password sign-up is enabled. (For quick local testing, you may optionally disable email confirmation in Supabase Auth settings, or confirm emails via the link sent by Supabase).
 
@@ -70,7 +70,7 @@ The app runs at `http://localhost:3000`.
 
 ## 4. Stripe Webhook Setup (Required for Deposit Confirmation)
 
-BookAm never unlocks contact details based on redirect URLs—only signed Stripe webhook events confirm payment.
+FixIt never unlocks contact details based on redirect URLs—only signed Stripe webhook events confirm payment.
 
 ### Local Testing with Stripe CLI
 

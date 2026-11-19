@@ -107,7 +107,7 @@ export async function validateJob(description: string): Promise<ValidateJobResul
       messages: [
         {
           role: 'system',
-          content: `You validate customer service requests for BookAm, a local home-services marketplace in Benin City, Nigeria.
+          content: `You validate customer service requests for FixIt, a local home-services marketplace in Benin City, Nigeria.
 Supported categories: ${CATEGORY_NAMES.join(', ')}.
 Return ONLY JSON matching:
 {
@@ -134,7 +134,7 @@ Rules:
     const parsed = ValidateJobResultSchema.parse(extractJsonObject(raw));
     return { ...parsed, allowManual: true };
   } catch (err) {
-    console.error('[BookAm AI] validateJob fallback triggered:', err);
+    console.error('[FixIt AI] validateJob fallback triggered:', err);
     return {
       valid: false,
       status: 'ai_unavailable',
@@ -196,7 +196,7 @@ export async function understandJob(description: string): Promise<UnderstandJobR
     messages: [
       {
         role: 'system',
-        content: `You are BookAm Intelligence, an assistant for a local home-services marketplace in Benin City, Nigeria.
+        content: `You are FixIt Intelligence, an assistant for a local home-services marketplace in Benin City, Nigeria.
 Available categories (pick the closest exact name): ${CATEGORY_NAMES.join(', ')}.
 Known Benin City areas: ${knownAreas.join(', ')}.
 Urgency options: ${URGENCY_LEVELS.join(', ')}.
@@ -301,7 +301,7 @@ export async function estimatePrice(
       messages: [
         {
           role: 'system',
-          content: `You are BookAm's provisional price guidance assistant for Benin City, Nigeria.
+          content: `You are FixIt's provisional price guidance assistant for Benin City, Nigeria.
 STRICT PRICING RULES:
 - Do NOT invent or claim verified Benin City market pricing.
 - Anchor your estimate strictly to the provided editable local pricing configuration.
@@ -343,7 +343,7 @@ Return ONLY JSON matching:
       currency: defaultCurrency,
     };
   } catch (err) {
-    console.error('[BookAm AI] estimatePrice fallback triggered:', err);
+    console.error('[FixIt AI] estimatePrice fallback triggered:', err);
     return {
       estimatedMin: matchingConfig.minPrice,
       estimatedMax: matchingConfig.maxPrice,
@@ -405,7 +405,7 @@ export async function analyzeOffers(
     return {
       summary: 'No worker offers have been submitted for this job yet.',
       comparisons: [],
-      guidanceNote: 'Once workers submit offers, BookAm Intelligence can compare pricing, ratings, and availability.',
+      guidanceNote: 'Once workers submit offers, FixIt Intelligence can compare pricing, ratings, and availability.',
     };
   }
 
@@ -433,7 +433,7 @@ export async function analyzeOffers(
           consideration =
             o.averageRating !== null
               ? `Rated ${o.averageRating.toFixed(1)}/5 across ${o.completedJobs} completed jobs.`
-              : `${o.completedJobs} completed jobs on BookAm.`;
+              : `${o.completedJobs} completed jobs on FixIt.`;
         }
       }
 
@@ -465,7 +465,7 @@ export async function analyzeOffers(
       messages: [
         {
           role: 'system',
-          content: `You are BookAm Intelligence comparing worker offers for a customer in Benin City, Nigeria.
+          content: `You are FixIt Intelligence comparing worker offers for a customer in Benin City, Nigeria.
 RULES:
 - Compare offers objectively using proposedPrice, the job's indicative estimate range (estimatedMin..estimatedMax), worker rating, completedJobs, and availability.
 - Highlight if an offer is below estimate (advise asking what the price includes), within estimate, or above estimate.
@@ -496,7 +496,7 @@ Return ONLY JSON matching:
     const raw = completion.choices[0]?.message?.content || '';
     return OfferAnalysisSchema.parse(extractJsonObject(raw));
   } catch (err) {
-    console.error('[BookAm AI] analyzeOffers fallback triggered:', err);
+    console.error('[FixIt AI] analyzeOffers fallback triggered:', err);
     return buildDeterministicFallback();
   }
 }

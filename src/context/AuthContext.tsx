@@ -8,7 +8,7 @@ import type {
   Profile,
   WorkerProfile,
   WorkerStats,
-} from '../types/bookam';
+} from '../types/FixIt';
 
 interface AuthContextValue {
   loading: boolean;
@@ -169,7 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!supabase || !active || !user) return;
 
       channel = supabase
-        .channel(`bookam-notifications-${user.id}`)
+        .channel(`FixIt-notifications-${user.id}`)
         .on(
           'postgres_changes',
           {

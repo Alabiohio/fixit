@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { PublicNavbar } from '../../components/PublicNavbar';
 import { apiRequest } from '../../lib/api';
-import type { Booking, PaymentRecord } from '../../types/bookam';
+import type { Booking, PaymentRecord } from '../../types/FixIt';
 
 export function CheckoutSuccessPage() {
   const [searchParams] = useSearchParams();
@@ -88,7 +88,7 @@ export function CheckoutSuccessPage() {
                   : 'Payment confirmation pending'}
               </h1>
               <p className="text-sm text-[#6B7280] leading-relaxed">
-                For your security, BookAm never unlocks contact details from redirect URLs alone—only a signed Stripe webhook confirms payment.
+                For your security, FixIt never unlocks contact details from redirect URLs alone—only a signed Stripe webhook confirms payment.
               </p>
               {error && (
                 <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-[#FF3B30]">

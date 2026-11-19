@@ -1,4 +1,4 @@
--- BookAm Initial Database Schema (Supabase PostgreSQL)
+-- FixIt Initial Database Schema (Supabase PostgreSQL)
 -- Run in Supabase SQL Editor or via Supabase CLI migrations
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;

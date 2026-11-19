@@ -17,24 +17,24 @@ import type {
   PriceEstimateResult,
   UnderstandJobResult,
   ValidateJobResult,
-} from '../../types/bookam';
+} from '../../types/FixIt';
 
 const FAQS = [
   {
-    q: 'How does BookAm protect my phone number?',
+    q: 'How does FixIt protect my phone number?',
     a: 'Your phone number is never shown on the public job board or in initial offer listings. Contact information is unlocked only after an offer is accepted and the booking deposit payment is verified via Stripe webhook.',
   },
   {
     q: 'Are AI price estimates guaranteed final quotes?',
-    a: 'No. BookAm Intelligence provides provisional indicative ranges based on editable local pricing baselines. Skilled workers submit their own offers after reviewing your job details, and you can also enter your own budget.',
+    a: 'No. FixIt Intelligence provides provisional indicative ranges based on editable local pricing baselines. Skilled workers submit their own offers after reviewing your job details, and you can also enter your own budget.',
   },
   {
-    q: 'Where does BookAm currently operate?',
+    q: 'Where does FixIt currently operate?',
     a: 'Our initial marketplace focus is Benin City, Edo State (including Ugbowo, GRA, Ring Road, Sapele Road, Uselu, Adesuwa, and Ekosodin). The platform is structured to support additional cities and categories.',
   },
   {
     q: 'Can I be both a customer and a worker with one account?',
-    a: 'Yes. Every BookAm account supports both customer and worker workflows. You can post jobs for your home and also create a Worker Profile to browse open jobs and submit offers.',
+    a: 'Yes. Every FixIt account supports both customer and worker workflows. You can post jobs for your home and also create a Worker Profile to browse open jobs and submit offers.',
   },
   {
     q: 'What happens if a deposit payment fails or is cancelled?',
@@ -204,11 +204,11 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* 1. HOW BOOKAM WORKS */}
+      {/* 1. HOW FixIt WORKS */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="max-w-2xl mb-10">
           <div className="text-xs font-semibold text-[#635BFF] uppercase tracking-wider mb-2">
-            How BookAm Works
+            How FixIt Works
           </div>
           <h2 className="text-2xl sm:text-3xl font-bold text-[#1A1B25] [text-wrap:balance]">
             Four structured steps from request to verified booking
@@ -225,7 +225,7 @@ export function LandingPage() {
             {
               step: '02',
               title: 'Review AI guidance',
-              body: 'BookAm structures your job, suggests missing questions, and shows a provisional indicative price range.',
+              body: 'FixIt structures your job, suggests missing questions, and shows a provisional indicative price range.',
             },
             {
               step: '03',
@@ -318,13 +318,13 @@ export function LandingPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
           <div className="lg:col-span-5 space-y-5">
             <div className="text-xs font-semibold text-[#635BFF] uppercase tracking-wider">
-              BookAm Intelligence
+              FixIt Intelligence
             </div>
             <h2 className="text-2xl sm:text-3xl font-bold text-[#1A1B25] [text-wrap:balance]">
               Practical AI that clarifies jobs before workers bid
             </h2>
             <p className="text-sm text-[#6B7280] leading-relaxed">
-              Instead of forcing customers to fill complex technical forms, BookAm Intelligence extracts category, location, urgency, and helpful follow-up questions directly from plain descriptions—and compares incoming offers transparently.
+              Instead of forcing customers to fill complex technical forms, FixIt Intelligence extracts category, location, urgency, and helpful follow-up questions directly from plain descriptions—and compares incoming offers transparently.
             </p>
             <ul className="space-y-3 text-sm text-[#1A1B25]">
               <li className="flex items-start gap-2.5">
@@ -345,7 +345,7 @@ export function LandingPage() {
           <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
             <form onSubmit={handleAnalyzePreview} className="space-y-4">
               <label htmlFor="demo-job-input" className="block text-sm font-semibold text-[#1A1B25]">
-                Try BookAm Intelligence on a sample request
+                Try FixIt Intelligence on a sample request
               </label>
               <textarea
                 id="demo-job-input"
@@ -437,7 +437,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* 4. WHY CHOOSE BOOKAM */}
+      {/* 4. WHY CHOOSE FixIt */}
       <section className="bg-white border-y border-slate-200 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-2xl mb-10">
@@ -445,7 +445,7 @@ export function LandingPage() {
               Built for Trust
             </div>
             <h2 className="text-2xl sm:text-3xl font-bold text-[#1A1B25]">
-              Why customers and technicians use BookAm
+              Why customers and technicians use FixIt
             </h2>
           </div>
 

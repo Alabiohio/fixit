@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { AppShell } from '../../components/AppShell';
 import { apiRequest } from '../../lib/api';
 import { CATEGORY_NAMES, SUPPORTED_CITIES, formatNaira } from '../../../shared/constants';
-import type { Job } from '../../types/bookam';
+import type { Job } from '../../types/FixIt';
 
 export function WorkerJobsBoardPage() {
   const [jobs, setJobs] = useState<Job[]>([]);

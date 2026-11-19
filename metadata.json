@@ -1,5 +1,5 @@
 {
-  "name": "BookAm",
+  "name": "FixIt",
   "description": "Find help. Compare offers. Book with confidence. An AI-powered local services marketplace built for Benin City and Nigeria.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

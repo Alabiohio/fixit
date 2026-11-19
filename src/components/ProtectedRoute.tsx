@@ -11,7 +11,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen bg-[#F6F7FB] flex items-center justify-center p-6">
         <div className="bg-white rounded-xl border border-slate-200 px-6 py-5 text-sm text-[#6B7280]">
-          Loading your BookAm workspace...
+          Loading your FixIt workspace...
         </div>
       </div>
     );

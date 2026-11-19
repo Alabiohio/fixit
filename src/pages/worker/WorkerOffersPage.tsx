@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { AppShell } from '../../components/AppShell';
 import { apiRequest } from '../../lib/api';
 import { formatNaira } from '../../../shared/constants';
-import type { Offer } from '../../types/bookam';
+import type { Offer } from '../../types/FixIt';
 
 export function WorkerOffersPage() {
   const [offers, setOffers] = useState<Offer[]>([]);

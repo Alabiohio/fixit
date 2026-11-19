@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { AppConfig } from '../types/bookam';
+import type { AppConfig } from '../types/FixIt';
 
 let supabaseInstance: SupabaseClient | null = null;
 let cachedConfig: AppConfig | null = null;

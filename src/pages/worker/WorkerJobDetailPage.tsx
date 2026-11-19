@@ -6,7 +6,7 @@ import { PriceEstimateCard } from '../../components/PriceEstimateCard';
 import { useAuth } from '../../context/AuthContext';
 import { apiRequest } from '../../lib/api';
 import { formatNaira } from '../../../shared/constants';
-import type { Job, Offer } from '../../types/bookam';
+import type { Job, Offer } from '../../types/FixIt';
 
 export function WorkerJobDetailPage() {
   const { id } = useParams();

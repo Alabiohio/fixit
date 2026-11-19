@@ -40,11 +40,11 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`BookAm server running at http://localhost:${PORT}`);
+    console.log(`FixIt server running at http://localhost:${PORT}`);
   });
 }
 
 startServer().catch((err) => {
-  console.error('Failed to start BookAm server:', err);
+  console.error('Failed to start FixIt server:', err);
   process.exit(1);
 });

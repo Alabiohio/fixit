@@ -108,7 +108,7 @@ async function getWorkerStatsMap(workerIds: string[]) {
     const completedJobs = (completedBookings || []).filter((b) => b.worker_id === id).length;
 
     stats.set(id, {
-      fullName: p?.full_name || 'BookAm Professional',
+      fullName: p?.full_name || 'FixIt Professional',
       avatarUrl: p?.avatar_url || '',
       bio: wp?.bio || '',
       serviceCategories: wp?.service_categories || [],
@@ -150,7 +150,7 @@ export function registerRoutes(app: Express): void {
         res.json(result);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Webhook verification failed';
-        console.error('[BookAm Stripe Webhook Error]', message);
+        console.error('[FixIt Stripe Webhook Error]', message);
         res.status(400).json({ error: message });
       }
     },
@@ -222,7 +222,7 @@ export function registerRoutes(app: Express): void {
         estimate,
       });
     } catch (err) {
-      console.error('[BookAm AI analyze-request fallback]', err);
+      console.error('[FixIt AI analyze-request fallback]', err);
       res.json({
         validation: {
           valid: false,
@@ -667,7 +667,7 @@ export function registerRoutes(app: Express): void {
           ...o,
           worker: {
             id: o.worker_id,
-            full_name: ws?.fullName || 'BookAm Professional',
+            full_name: ws?.fullName || 'FixIt Professional',
             avatar_url: ws?.avatarUrl || '',
             bio: ws?.bio || '',
             service_categories: ws?.serviceCategories || [],
@@ -1039,7 +1039,7 @@ export function registerRoutes(app: Express): void {
         job: jobMap.get(b.job_id) || null,
         counterpart: {
           id: cpId,
-          full_name: cp?.full_name || (role === 'worker' ? 'Customer' : 'BookAm Professional'),
+          full_name: cp?.full_name || (role === 'worker' ? 'Customer' : 'FixIt Professional'),
           avatar_url: cp?.avatar_url || '',
         },
         latest_payment: latestPayment,
@@ -1096,7 +1096,7 @@ export function registerRoutes(app: Express): void {
       locked: false,
       role: isCustomer ? 'worker' : 'customer',
       contact: {
-        full_name: targetProfile?.full_name || 'BookAm User',
+        full_name: targetProfile?.full_name || 'FixIt User',
         phone_number: targetProfile?.phone_number || 'Phone number not provided yet',
         city: targetProfile?.city || 'Benin City',
       },
@@ -1454,7 +1454,7 @@ export function registerRoutes(app: Express): void {
     const path = `${userId}/${parsed.data.folder}/${Date.now()}.${ext}`;
 
     const { error: uploadErr } = await admin.storage
-      .from('bookam-uploads')
+      .from('FixIt-uploads')
       .upload(path, buffer, { contentType: mimeType, upsert: false });
 
     if (uploadErr) {
@@ -1462,7 +1462,7 @@ export function registerRoutes(app: Express): void {
       return;
     }
 
-    const { data: publicUrlData } = admin.storage.from('bookam-uploads').getPublicUrl(path);
+    const { data: publicUrlData } = admin.storage.from('FixIt-uploads').getPublicUrl(path);
     res.status(201).json({ url: publicUrlData.publicUrl });
   });
 }

@@ -27,7 +27,7 @@ export function SetupNotice() {
             External environment configuration required
           </h3>
           <p className="text-xs text-[#6B7280] leading-relaxed">
-            BookAm uses real Supabase PostgreSQL/Auth, Groq AI, and Stripe Checkout webhooks. Configure the following environment variables in your <code className="font-mono text-[#1A1B25]">.env</code> file to enable live operations:
+            FixIt uses real Supabase PostgreSQL/Auth, Groq AI, and Stripe Checkout webhooks. Configure the following environment variables in your <code className="font-mono text-[#1A1B25]">.env</code> file to enable live operations:
           </p>
           <ul className="text-xs text-[#1A1B25] space-y-1 list-disc list-inside">
             {missing.map((item) => (

@@ -3,7 +3,7 @@ import { CheckCircle2, Lock, Phone } from 'lucide-react';
 import { AppShell } from '../../components/AppShell';
 import { apiRequest } from '../../lib/api';
 import { formatNaira } from '../../../shared/constants';
-import type { Booking } from '../../types/bookam';
+import type { Booking } from '../../types/FixIt';
 
 interface UnlockedContact {
   full_name: string;

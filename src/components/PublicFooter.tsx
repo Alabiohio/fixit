@@ -70,7 +70,7 @@ export function PublicFooter() {
         </div>
 
         <div className="mt-10 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs text-white/50">
-          <span>© {new Date().getFullYear()} BookAm Marketplace. All rights reserved.</span>
+          <span>© {new Date().getFullYear()} FixIt Marketplace. All rights reserved.</span>
           <span>Benin City, Edo State, Nigeria</span>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import { Info } from 'lucide-react';
 import { formatNaira } from '../../shared/constants';
-import type { PriceEstimateResult } from '../types/bookam';
+import type { PriceEstimateResult } from '../types/FixIt';
 
 interface PriceEstimateCardProps {
   estimate: PriceEstimateResult;
@@ -11,7 +11,7 @@ export function PriceEstimateCard({ estimate }: PriceEstimateCardProps) {
     <div className="bg-white rounded-xl border border-slate-200 border-l-4 border-l-[#FF6B35] p-5 shadow-xs">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="text-xs font-medium text-[#6B7280]">
-          BookAm Intelligence · {estimate.dataQuality}
+          FixIt Intelligence · {estimate.dataQuality}
         </div>
         {estimate.isProvisional && (
           <span className="text-xs font-medium text-[#FF6B35]">

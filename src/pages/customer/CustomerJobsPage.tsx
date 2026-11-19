@@ -4,7 +4,7 @@ import { PlusCircle } from 'lucide-react';
 import { AppShell } from '../../components/AppShell';
 import { apiRequest } from '../../lib/api';
 import { formatNaira } from '../../../shared/constants';
-import type { Job } from '../../types/bookam';
+import type { Job } from '../../types/FixIt';
 
 export function CustomerJobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);

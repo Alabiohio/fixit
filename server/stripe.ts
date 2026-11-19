@@ -71,7 +71,7 @@ export async function createDepositCheckoutSession(
             currency,
             unit_amount: unitAmount,
             product_data: {
-              name: `BookAm Booking Deposit — ${params.jobTitle}`,
+              name: `FixIt Booking Deposit — ${params.jobTitle}`,
               description: note
                 ? `Refundable booking confirmation deposit (${note}). Unlocks verified contact details.`
                 : 'Booking confirmation deposit. Unlocks worker and customer contact details upon verification.',
@@ -116,7 +116,7 @@ export async function createDepositCheckoutSession(
     });
 
     if (insertErr) {
-      console.error('[BookAm Stripe] Failed to record pending payment:', insertErr);
+      console.error('[FixIt Stripe] Failed to record pending payment:', insertErr);
       throw new Error('Could not persist payment session');
     }
 

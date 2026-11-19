@@ -11,13 +11,13 @@ export function HowItWorksPage() {
       <main className="flex-1 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14 space-y-12">
         <div className="space-y-4 max-w-2xl">
           <div className="text-xs font-semibold text-[#635BFF] uppercase tracking-wider">
-            How BookAm Works
+            How FixIt Works
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-[#1A1B25] [text-wrap:balance]">
             Transparent local hiring from AI intake to verified deposit
           </h1>
           <p className="text-base text-[#6B7280] leading-relaxed">
-            BookAm structures every request before workers bid, protects personal phone numbers until payment is verified, and keeps both parties informed at every step.
+            FixIt structures every request before workers bid, protects personal phone numbers until payment is verified, and keeps both parties informed at every step.
           </p>
         </div>
 
@@ -26,14 +26,14 @@ export function HowItWorksPage() {
             <Sparkles className="w-5 h-5 text-[#635BFF]" />
             <h2 className="text-lg font-bold text-[#1A1B25]">1. AI-assisted job intake</h2>
             <p className="text-sm text-[#6B7280] leading-relaxed">
-              Describe your issue in plain language. BookAm extracts the category, location, urgency, and helpful follow-up questions, then shows an editable summary and provisional price range before you publish.
+              Describe your issue in plain language. FixIt extracts the category, location, urgency, and helpful follow-up questions, then shows an editable summary and provisional price range before you publish.
             </p>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-3">
             <CheckCircle2 className="w-5 h-5 text-[#00C853]" />
             <h2 className="text-lg font-bold text-[#1A1B25]">2. Competitive worker offers</h2>
             <p className="text-sm text-[#6B7280] leading-relaxed">
-              Local professionals review your job on the board and submit a proposed price, estimated completion time, and availability. BookAm compares offers objectively without auto-picking for you.
+              Local professionals review your job on the board and submit a proposed price, estimated completion time, and availability. FixIt compares offers objectively without auto-picking for you.
             </p>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-3">
@@ -54,7 +54,7 @@ export function HowItWorksPage() {
 
         <div className="bg-white rounded-xl border border-slate-200 p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
           <div>
-            <h3 className="text-lg font-bold text-[#1A1B25]">Ready to try BookAm?</h3>
+            <h3 className="text-lg font-bold text-[#1A1B25]">Ready to try FixIt?</h3>
             <p className="text-sm text-[#6B7280] mt-1">
               Create an account to post a job or browse open jobs in Benin City.
             </p>

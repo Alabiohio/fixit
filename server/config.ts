@@ -49,7 +49,7 @@ export function getGroqApiKey(): string {
 
 export function getGroqModel(): string {
   const configured = (process.env.GROQ_MODEL || '').trim();
-  return configured || 'llama-3.3-70b-versatile';
+  return configured || 'openai/gpt-oss-120b';
 }
 
 export function getStripeSecretKey(): string {
@@ -69,20 +69,20 @@ export function getStripeWebhookSecret(): string {
 }
 
 export function getDefaultCurrency(): string {
-  return (process.env.BOOKAM_DEFAULT_CURRENCY || 'ngn').trim().toLowerCase();
+  return (process.env.FixIt_DEFAULT_CURRENCY || 'ngn').trim().toLowerCase();
 }
 
 export function getDefaultDeposit(): number {
-  const parsed = Number(process.env.BOOKAM_DEFAULT_DEPOSIT || '2000');
+  const parsed = Number(process.env.FixIt_DEFAULT_DEPOSIT || '2000');
   return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : 2000;
 }
 
 export function getFallbackCurrency(): string {
-  return (process.env.BOOKAM_STRIPE_FALLBACK_CURRENCY || 'usd').trim().toLowerCase();
+  return (process.env.FixIt_STRIPE_FALLBACK_CURRENCY || 'usd').trim().toLowerCase();
 }
 
 export function getNgnPerUsdRate(): number {
-  const parsed = Number(process.env.BOOKAM_NGN_PER_USD_TEST_RATE || '1600');
+  const parsed = Number(process.env.FixIt_NGN_PER_USD_TEST_RATE || '1600');
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 1600;
 }
 
