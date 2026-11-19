@@ -1,20 +1,15 @@
-import 'dotenv/config';
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { registerRoutes } from './server/routes.ts';
+import { app } from './server/app.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function startServer() {
-  const app = express();
   const PORT = Number(process.env.PORT || 3000);
   const isProd = process.env.NODE_ENV === 'production';
-
-  // Register API & Stripe webhook routes first
-  registerRoutes(app);
 
   if (!isProd) {
     const { createServer: createViteServer } = await import('vite');
