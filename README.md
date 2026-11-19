@@ -108,4 +108,4 @@ Ensure `NODE_ENV=production` and all secrets are configured in your hosting envi
 
 ### Vercel
 
-The Vercel function in `api/[...path].ts` serves the Express API, including `/api/config` and the Stripe webhook. Keep the Vite build output directory set to `dist`, and configure the required environment variables in the Vercel project settings for Production. Set `APP_URL` and `NEXT_PUBLIC_APP_URL` to your deployed site URL, not `http://localhost:3000`.
+The Vercel function in `api/[...path].ts` serves the Express API, including `/api/config` and the Stripe webhook. The `vercel.json` rewrite sends client-side routes to the Vite app while leaving `/api/*` requests untouched. Keep the Vite build output directory set to `dist`, and configure the required environment variables in the Vercel project settings for Production. Set `APP_URL` and `NEXT_PUBLIC_APP_URL` to your deployed site URL, not `http://localhost:3000`.
