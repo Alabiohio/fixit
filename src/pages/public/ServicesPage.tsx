@@ -11,9 +11,6 @@ export function ServicesPage() {
 
       <main className="flex-1 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-14 space-y-10">
         <div className="space-y-3 max-w-2xl">
-          <div className="text-xs font-semibold text-[#635BFF] uppercase tracking-wider">
-            Service Categories · {SUPPORTED_CITIES[0].name}
-          </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-[#1A1B25]">
             Skilled home and commercial services
           </h1>

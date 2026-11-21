@@ -18,6 +18,7 @@ export interface Profile {
   full_name: string;
   email: string;
   phone_number: string;
+  address: string;
   avatar_url: string;
   city: string;
   created_at: string;
@@ -123,6 +124,10 @@ export interface Offer {
   estimated_completion: string;
   availability: string;
   message: string;
+  negotiation_count: number;
+  negotiation_by: string | null;
+  negotiation_message: string;
+  negotiation_pending: boolean;
   status: 'pending' | 'accepted' | 'rejected' | 'withdrawn' | 'expired';
   created_at: string;
   worker?: OfferWorkerInfo;
@@ -138,6 +143,7 @@ export interface PaymentRecord {
   currency: string;
   display_amount_ngn?: number | null;
   status: 'pending' | 'succeeded' | 'failed' | 'expired' | 'refunded';
+  payment_type?: 'deposit' | 'balance';
   notes?: string;
   created_at: string;
 }
@@ -160,7 +166,24 @@ export interface Booking {
   deposit_amount: number;
   currency: string;
   payment_status: 'unpaid' | 'pending' | 'paid' | 'failed' | 'refunded';
-  booking_status: 'pending_payment' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
+  balance_payment_status:
+    | 'unpaid'
+    | 'pending'
+    | 'reported'
+    | 'paid'
+    | 'failed'
+    | 'refunded'
+    | 'not_applicable';
+  balance_payment_method: 'online' | 'in_person' | null;
+  balance_customer_confirmed_at: string | null;
+  balance_worker_confirmed_at: string | null;
+  booking_status:
+    | 'pending_payment'
+    | 'confirmed'
+    | 'in_progress'
+    | 'cancellation_pending'
+    | 'completed'
+    | 'cancelled';
   created_at: string;
   job?: Partial<Job> | null;
   counterpart?: {
@@ -169,7 +192,29 @@ export interface Booking {
     avatar_url: string;
   };
   latest_payment?: PaymentRecord | null;
+  cancellation_request?: {
+    id: string;
+    requested_by: string;
+    reason: string;
+    status: 'pending_review' | 'processing' | 'cancelled' | 'failed' | 'rejected';
+    review_note: string;
+    created_at: string;
+  } | null;
+  wallet_credit?: number;
   review?: Review | null;
+}
+
+export interface WalletTransaction {
+  id: string;
+  booking_id: string | null;
+  transaction_type: 'credit' | 'withdrawal';
+  amount: number;
+  status: 'pending' | 'completed' | 'failed';
+  reference: string;
+  description: string;
+  transfer_code: string | null;
+  failure_reason: string;
+  created_at: string;
 }
 
 export interface OfferAnalysisResult {

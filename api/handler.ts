@@ -14,5 +14,5 @@ export default function handler(req: Request, res: Response): void {
   const query = requestUrl.searchParams.toString();
   req.url = `/api${apiPath}${query ? `?${query}` : ''}`;
 
-  app.handle(req, res);
+  app(req, res);
 }

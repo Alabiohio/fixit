@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Bell,
@@ -7,6 +7,7 @@ import {
   CheckCheck,
   ClipboardList,
   Compass,
+  CircleDollarSign,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -38,11 +39,27 @@ export function AppShell({ mode, title, children }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
 
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!sidebarOpen) return;
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setSidebarOpen(false);
+    }
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [sidebarOpen]);
+
   const customerNav = [
     { label: 'Dashboard', to: '/customer/dashboard', icon: LayoutDashboard },
     { label: 'Post a Job', to: '/customer/jobs/new', icon: PlusCircle },
     { label: 'My Jobs', to: '/customer/jobs', icon: ClipboardList },
     { label: 'Bookings', to: '/customer/bookings', icon: CalendarCheck },
+    { label: 'Balance', to: '/customer/balance', icon: CircleDollarSign },
     { label: 'Notifications', to: '/customer/notifications', icon: Bell },
     { label: 'Settings', to: '/customer/settings', icon: Settings },
   ];
@@ -52,6 +69,7 @@ export function AppShell({ mode, title, children }: AppShellProps) {
     { label: 'Job Board', to: '/worker/jobs', icon: Compass },
     { label: 'My Offers', to: '/worker/offers', icon: Briefcase },
     { label: 'Bookings', to: '/worker/bookings', icon: CalendarCheck },
+    { label: 'Balance', to: '/worker/balance', icon: CircleDollarSign },
     { label: 'Notifications', to: '/worker/notifications', icon: Bell },
     { label: 'Worker Profile', to: '/worker/profile', icon: UserCheck },
   ];
@@ -64,9 +82,9 @@ export function AppShell({ mode, title, children }: AppShellProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#F6F7FB] flex flex-col">
+    <div className="h-dvh min-h-0 bg-[#F6F7FB] flex flex-col overflow-hidden">
       {/* Dark Navy Top Bar */}
-      <header className="bg-[#1A1B25] text-white border-b border-white/10 h-16 px-4 sm:px-6 flex items-center justify-between gap-4 sticky top-0 z-40">
+      <header className="bg-[#1A1B25] text-white border-b border-white/10 h-16 shrink-0 px-4 sm:px-6 flex items-center justify-between gap-4 sticky top-0 z-50">
         <div className="flex items-center gap-4 min-w-0">
           <button
             type="button"
@@ -191,15 +209,23 @@ export function AppShell({ mode, title, children }: AppShellProps) {
         </div>
       </header>
 
-      <div className="flex-1 flex">
+      <div className="flex-1 min-h-0 flex relative">
+        {sidebarOpen && (
+          <button
+            type="button"
+            aria-label="Close workspace menu"
+            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden fixed inset-0 top-16 z-20 bg-[#1A1B25]/40"
+          />
+        )}
+
         {/* Sidebar Navigation */}
         <aside
           className={`${
-            sidebarOpen ? 'fixed inset-y-16 left-0 z-30 block' : 'hidden'
-          } lg:static lg:block w-64 bg-white border-r border-slate-200 shrink-0`}
+            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          } fixed top-16 bottom-0 left-0 z-30 w-64 bg-white border-r border-slate-200 overflow-y-auto transition-transform duration-200 ease-out lg:sticky lg:top-16 lg:bottom-auto lg:h-full lg:translate-x-0 lg:shrink-0`}
         >
           <div className="p-5 border-b border-slate-100">
-            <div className="text-xs text-[#6B7280]">Signed in as</div>
             <div className="text-sm font-semibold text-[#1A1B25] truncate mt-0.5">
               {profile?.full_name || profile?.email || 'FixIt Account'}
             </div>
@@ -236,11 +262,14 @@ export function AppShell({ mode, title, children }: AppShellProps) {
           <nav className="p-3 space-y-1">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive =
-                location.pathname === item.to ||
-                (item.to !== '/customer/dashboard' &&
-                  item.to !== '/worker/dashboard' &&
-                  location.pathname.startsWith(item.to + '/'));
+              const matchingItems = navItems.filter(
+                (navItem) =>
+                  location.pathname === navItem.to ||
+                  location.pathname.startsWith(navItem.to + '/'),
+              );
+              const activeItem =
+                matchingItems.sort((a, b) => b.to.length - a.to.length)[0];
+              const isActive = activeItem?.to === item.to;
 
               return (
                 <Link
@@ -280,8 +309,10 @@ export function AppShell({ mode, title, children }: AppShellProps) {
         </aside>
 
         {/* Main Viewport */}
-        <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 max-w-6xl">
-          {children}
+        <main className="flex-1 min-w-0 h-full overflow-y-auto">
+          <div className="w-full max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
+            {children}
+          </div>
         </main>
       </div>
     </div>

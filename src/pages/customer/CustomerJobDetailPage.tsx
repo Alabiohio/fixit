@@ -4,18 +4,26 @@ import { ArrowLeft, CreditCard, Lock, Sparkles, Star, User } from 'lucide-react'
 import { AppShell } from '../../components/AppShell';
 import { PriceEstimateCard } from '../../components/PriceEstimateCard';
 import { apiRequest } from '../../lib/api';
+import { useAuth } from '../../context/AuthContext';
 import { formatNaira } from '../../../shared/constants';
-import type { Booking, Job, Offer, OfferAnalysisResult } from '../../types/FixIt';
+import type { Booking, Job, Offer, OfferAnalysisResult } from '../../types/bookam';
 
 export function CustomerJobDetailPage() {
   const { id } = useParams();
+  const { profile } = useAuth();
   const [job, setJob] = useState<Job | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [booking, setBooking] = useState<Booking | null>(null);
   const [analysis, setAnalysis] = useState<OfferAnalysisResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [analyzingOffers, setAnalyzingOffers] = useState(false);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const [decliningId, setDecliningId] = useState<string | null>(null);
+  const [negotiatingId, setNegotiatingId] = useState<string | null>(null);
+  const [negotiationPrice, setNegotiationPrice] = useState('');
+  const [negotiationMessage, setNegotiationMessage] = useState('');
+  const [submittingNegotiationId, setSubmittingNegotiationId] = useState<string | null>(null);
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState('');
 
@@ -26,10 +34,12 @@ export function CustomerJobDetailPage() {
     try {
       const data = await apiRequest<{
         job: Job;
+        isOwner: boolean;
         offers: Offer[];
         booking: Booking | null;
       }>(`/api/jobs/${id}`);
       setJob(data.job);
+      setIsOwner(data.isOwner);
       setOffers(data.offers);
       setBooking(data.booking);
     } catch (err) {
@@ -74,6 +84,48 @@ export function CustomerJobDetailPage() {
       setError(err instanceof Error ? err.message : 'Unable to accept offer.');
     } finally {
       setAcceptingId(null);
+    }
+  }
+
+  async function handleDeclineOffer(offerId: string) {
+    setDecliningId(offerId);
+    setError('');
+    try {
+      await apiRequest(`/api/offers/${offerId}/decline`, { method: 'POST' });
+      await loadJob();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to decline offer.');
+    } finally {
+      setDecliningId(null);
+    }
+  }
+
+  async function handleSubmitNegotiation(e: React.FormEvent, offerId: string) {
+    e.preventDefault();
+    const proposedPrice = Number(negotiationPrice);
+    if (!Number.isInteger(proposedPrice) || proposedPrice <= 0) {
+      setError('Enter a valid whole-number counteroffer.');
+      return;
+    }
+
+    setSubmittingNegotiationId(offerId);
+    setError('');
+    try {
+      await apiRequest(`/api/offers/${offerId}/negotiate`, {
+        method: 'POST',
+        body: JSON.stringify({
+          proposed_price: proposedPrice,
+          message: negotiationMessage.trim(),
+        }),
+      });
+      setNegotiatingId(null);
+      setNegotiationPrice('');
+      setNegotiationMessage('');
+      await loadJob();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to send counteroffer.');
+    } finally {
+      setSubmittingNegotiationId(null);
     }
   }
 
@@ -220,7 +272,7 @@ export function CustomerJobDetailPage() {
                       Agreed offer: <span className="font-mono-nums">{formatNaira(booking.agreed_price)}</span>
                     </h2>
                     <p className="text-xs text-[#6B7280] mt-1">
-                      Booking deposit required: <span className="font-mono-nums font-semibold text-[#1A1B25]">{formatNaira(booking.deposit_amount)}</span>
+                      20% escrow deposit required: <span className="font-mono-nums font-semibold text-[#1A1B25]">{formatNaira(booking.deposit_amount)}</span>
                     </p>
                   </div>
 
@@ -261,7 +313,7 @@ export function CustomerJobDetailPage() {
                 <div>
                   <h2 className="text-lg font-bold text-[#1A1B25]">Worker Offers</h2>
                   <p className="text-xs text-[#6B7280]">
-                    Compare proposed prices, timelines, and real ratings before accepting one offer.
+                    Compare prices and timelines, then accept, decline, or negotiate up to three counteroffers per worker.
                   </p>
                 </div>
 
@@ -308,7 +360,7 @@ export function CustomerJobDetailPage() {
                   {offers.map((offer) => (
                     <div
                       key={offer.id}
-                      className="rounded-xl border border-slate-200 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                      className="rounded-xl border border-slate-200 p-5 flex flex-col sm:flex-row sm:flex-wrap sm:items-center justify-between gap-4"
                     >
                       <div className="flex items-start gap-4">
                         <div className="w-12 h-12 rounded-full bg-[#F6F7FB] border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
@@ -347,6 +399,21 @@ export function CustomerJobDetailPage() {
                           {offer.message && (
                             <p className="text-sm text-[#1A1B25] pt-1">{offer.message}</p>
                           )}
+                          {offer.negotiation_count > 0 && (
+                            <p className="text-xs text-[#635BFF] pt-1">
+                              Negotiation {offer.negotiation_count}/3
+                              {offer.negotiation_pending
+                                ? offer.negotiation_by === profile?.id
+                                  ? ' · Waiting for worker'
+                                  : ' · Worker counteroffer'
+                                : ' · Counteroffer accepted'}
+                            </p>
+                          )}
+                          {offer.negotiation_message && (
+                            <p className="text-sm text-[#1A1B25] bg-[#F6F7FB] rounded-lg p-2 mt-2">
+                              {offer.negotiation_message}
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -355,21 +422,96 @@ export function CustomerJobDetailPage() {
                           {formatNaira(offer.proposed_price)}
                         </div>
 
-                        {offer.status === 'pending' && job.status === 'open' ? (
-                          <button
-                            type="button"
-                            disabled={acceptingId === offer.id}
-                            onClick={() => handleAcceptOffer(offer.id)}
-                            className="px-4 py-2 rounded-lg bg-[#635BFF] hover:bg-[#4A44C6] disabled:opacity-60 text-white text-xs font-semibold whitespace-nowrap"
-                          >
-                            {acceptingId === offer.id ? 'Accepting...' : 'Accept Offer'}
-                          </button>
+                        {isOwner && offer.status === 'pending' && job.status === 'open' ? (
+                          <div className="flex flex-wrap items-center justify-end gap-2">
+                            {!(
+                              offer.negotiation_pending &&
+                              offer.negotiation_by === profile?.id
+                            ) && (
+                              <button
+                                type="button"
+                                disabled={acceptingId === offer.id || decliningId === offer.id}
+                                onClick={() => handleAcceptOffer(offer.id)}
+                                className="px-3.5 py-2 rounded-lg bg-[#635BFF] hover:bg-[#4A44C6] disabled:opacity-60 text-white text-xs font-semibold whitespace-nowrap"
+                              >
+                                {acceptingId === offer.id
+                                  ? 'Accepting...'
+                                  : offer.negotiation_count > 0
+                                    ? 'Accept Counteroffer'
+                                    : 'Accept'}
+                              </button>
+                            )}
+                            {offer.negotiation_count < 3 &&
+                              (offer.negotiation_count === 0
+                                ? !offer.negotiation_pending
+                                : offer.negotiation_pending &&
+                                  offer.negotiation_by !== profile?.id) && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setNegotiatingId(
+                                      negotiatingId === offer.id ? null : offer.id,
+                                    );
+                                    setNegotiationPrice(String(offer.proposed_price));
+                                    setNegotiationMessage('');
+                                  }}
+                                  className="px-3.5 py-2 rounded-lg border border-[#635BFF] text-[#635BFF] hover:bg-[#635BFF]/5 text-xs font-semibold whitespace-nowrap"
+                                >
+                                  Negotiate
+                                </button>
+                              )}
+                            <button
+                              type="button"
+                              disabled={decliningId === offer.id || acceptingId === offer.id}
+                              onClick={() => handleDeclineOffer(offer.id)}
+                              className="px-3.5 py-2 rounded-lg border border-slate-300 text-[#6B7280] hover:border-[#FF3B30] hover:text-[#FF3B30] disabled:opacity-60 text-xs font-semibold whitespace-nowrap"
+                            >
+                              {decliningId === offer.id ? 'Declining...' : 'Decline'}
+                            </button>
+                          </div>
                         ) : (
                           <span className="text-xs font-semibold capitalize text-[#6B7280]">
                             {offer.status}
                           </span>
                         )}
                       </div>
+                      {negotiatingId === offer.id && (
+                        <form
+                          onSubmit={(e) => handleSubmitNegotiation(e, offer.id)}
+                          className="basis-full grid grid-cols-1 sm:grid-cols-[1fr_2fr_auto] gap-3 pt-3 border-t border-slate-100"
+                        >
+                          <label className="text-xs font-semibold text-[#1A1B25]">
+                            Your counteroffer (₦)
+                            <input
+                              type="number"
+                              min="1"
+                              max="50000000"
+                              step="1"
+                              required
+                              value={negotiationPrice}
+                              onChange={(e) => setNegotiationPrice(e.target.value)}
+                              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                            />
+                          </label>
+                          <label className="text-xs font-semibold text-[#1A1B25]">
+                            Message (optional)
+                            <input
+                              type="text"
+                              maxLength={1000}
+                              value={negotiationMessage}
+                              onChange={(e) => setNegotiationMessage(e.target.value)}
+                              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                            />
+                          </label>
+                          <button
+                            type="submit"
+                            disabled={submittingNegotiationId === offer.id}
+                            className="self-end px-4 py-2 rounded-lg bg-[#635BFF] text-white text-xs font-semibold disabled:opacity-60"
+                          >
+                            {submittingNegotiationId === offer.id ? 'Sending...' : 'Send Counteroffer'}
+                          </button>
+                        </form>
+                      )}
                     </div>
                   ))}
                 </div>

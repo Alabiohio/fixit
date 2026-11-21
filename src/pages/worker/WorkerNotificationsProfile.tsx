@@ -70,6 +70,7 @@ export function WorkerProfilePage() {
   const { profile, workerProfile, workerStats, refreshMe } = useAuth();
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [address, setAddress] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [bio, setBio] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>(['Plumbing']);
@@ -84,6 +85,7 @@ export function WorkerProfilePage() {
     if (profile) {
       setFullName(profile.full_name || '');
       setPhoneNumber(profile.phone_number || '');
+      setAddress(profile.address || '');
       setAvatarUrl(profile.avatar_url || '');
     }
     if (workerProfile) {
@@ -158,6 +160,7 @@ export function WorkerProfilePage() {
         body: JSON.stringify({
           full_name: fullName,
           phone_number: phoneNumber,
+          address,
           avatar_url: avatarUrl,
           bio,
           service_categories: selectedCategories,
@@ -255,6 +258,20 @@ export function WorkerProfilePage() {
                 className="w-full rounded-lg border border-slate-300 px-3.5 py-2 text-sm"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-[#1A1B25] mb-1.5">
+              Service address (unlocked only after deposit)
+            </label>
+            <input
+              type="text"
+              required
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="Street and area in Benin City"
+              className="w-full rounded-lg border border-slate-300 px-3.5 py-2 text-sm"
+            />
           </div>
 
           <div>

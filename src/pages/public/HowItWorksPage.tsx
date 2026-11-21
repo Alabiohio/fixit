@@ -10,9 +10,6 @@ export function HowItWorksPage() {
 
       <main className="flex-1 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14 space-y-12">
         <div className="space-y-4 max-w-2xl">
-          <div className="text-xs font-semibold text-[#635BFF] uppercase tracking-wider">
-            How FixIt Works
-          </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-[#1A1B25] [text-wrap:balance]">
             Transparent local hiring from AI intake to verified deposit
           </h1>

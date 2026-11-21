@@ -19,6 +19,7 @@ import { PostJobPage } from './pages/customer/PostJobPage';
 import { CustomerJobsPage } from './pages/customer/CustomerJobsPage';
 import { CustomerJobDetailPage } from './pages/customer/CustomerJobDetailPage';
 import { CustomerBookingsPage } from './pages/customer/CustomerBookingsPage';
+import { BalancePage } from './pages/BalancePage';
 import {
   CustomerNotificationsPage,
   CustomerSettingsPage,
@@ -94,6 +95,14 @@ export default function App() {
             }
           />
           <Route
+            path="/customer/balance"
+            element={
+              <ProtectedRoute>
+                <BalancePage role="customer" />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/customer/notifications"
             element={
               <ProtectedRoute>
@@ -148,6 +157,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <WorkerBookingsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/worker/balance"
+            element={
+              <ProtectedRoute>
+                <BalancePage role="worker" />
               </ProtectedRoute>
             }
           />

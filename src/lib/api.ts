@@ -37,12 +37,31 @@ export async function apiRequest<T>(
     headers,
   });
 
-  const payload = await res.json().catch(() => ({}));
+  let payload: unknown;
+  try {
+    payload = await res.json();
+  } catch {
+    if (!res.ok) {
+      throw new ApiError(`Request failed with status ${res.status}`, res.status);
+    }
+    throw new Error(`Expected a JSON response from ${path} (HTTP ${res.status}).`);
+  }
+
   if (!res.ok) {
+    const error =
+      typeof payload === 'object' && payload !== null && 'error' in payload &&
+      typeof payload.error === 'string'
+        ? payload.error
+        : `Request failed with status ${res.status}`;
+    const code =
+      typeof payload === 'object' && payload !== null && 'code' in payload &&
+      typeof payload.code === 'string'
+        ? payload.code
+        : undefined;
     throw new ApiError(
-      payload?.error || `Request failed with status ${res.status}`,
+      error,
       res.status,
-      payload?.code,
+      code,
     );
   }
 

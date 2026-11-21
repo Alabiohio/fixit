@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   full_name TEXT NOT NULL DEFAULT '',
   email TEXT NOT NULL DEFAULT '',
   phone_number TEXT NOT NULL DEFAULT '',
+  address TEXT NOT NULL DEFAULT '',
   avatar_url TEXT DEFAULT '',
   city TEXT NOT NULL DEFAULT 'Benin City',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -187,12 +188,13 @@ CREATE TRIGGER trg_payments_updated_at BEFORE UPDATE ON public.payments FOR EACH
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, full_name, email, phone_number, avatar_url)
+  INSERT INTO public.profiles (id, full_name, email, phone_number, address, avatar_url)
   VALUES (
     NEW.id,
     COALESCE(NEW.raw_user_meta_data ->> 'full_name', ''),
     COALESCE(NEW.email, ''),
     COALESCE(NEW.raw_user_meta_data ->> 'phone_number', ''),
+    COALESCE(NEW.raw_user_meta_data ->> 'address', ''),
     COALESCE(NEW.raw_user_meta_data ->> 'avatar_url', '')
   )
   ON CONFLICT (id) DO NOTHING;

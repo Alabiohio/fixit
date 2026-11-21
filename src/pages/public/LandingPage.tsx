@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
@@ -55,6 +55,38 @@ export function LandingPage() {
   } | null>(null);
   const [demoError, setDemoError] = useState('');
 
+  useEffect(() => {
+    const elements = document.querySelectorAll<HTMLElement>('[data-reveal]');
+
+    if (!('IntersectionObserver' in window)) {
+      elements.forEach((element) => element.classList.add('is-visible'));
+      return;
+    }
+
+    elements.forEach((element) => {
+      const delay = Number(element.dataset.revealDelay || 0);
+      if (delay > 0) element.style.transitionDelay = `${delay}ms`;
+    });
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add('is-visible');
+          observer.unobserve(entry.target);
+        });
+      },
+      {
+        threshold: 0.12,
+        rootMargin: '0px 0px -60px',
+      },
+    );
+
+    elements.forEach((element) => observer.observe(element));
+
+    return () => observer.disconnect();
+  }, []);
+
   async function handleAnalyzePreview(e: React.FormEvent) {
     e.preventDefault();
     setDemoLoading(true);
@@ -85,14 +117,18 @@ export function LandingPage() {
       <PublicNavbar />
 
       {/* HERO SECTION */}
-      <section className="bg-white border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 lg:py-20">
+      <section className="bg-white border-b border-slate-200 relative overflow-hidden">
+        <div
+          aria-hidden="true"
+          className="landing-orb absolute -top-28 -right-24 w-72 h-72 rounded-full bg-[#635BFF]/10 blur-3xl pointer-events-none"
+        />
+        <div
+          aria-hidden="true"
+          className="landing-orb-delayed absolute top-24 -left-28 w-64 h-64 rounded-full bg-[#FF6B35]/8 blur-3xl pointer-events-none"
+        />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 lg:py-20 relative">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
-            <div className="lg:col-span-6 space-y-6">
-              <div className="text-xs font-medium text-[#6B7280] tracking-wide">
-                Benin City, Edo State · Local Services Marketplace
-              </div>
-
+            <div className="landing-reveal lg:col-span-6 space-y-6">
               <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-[#1A1B25] leading-[1.12] [text-wrap:balance]">
                 Find trusted local services without the guesswork.
               </h1>
@@ -134,14 +170,14 @@ export function LandingPage() {
             </div>
 
             {/* Realistic Marketplace Preview + Benin City Artisan Image */}
-            <div className="lg:col-span-6 space-y-4">
-              <div className="rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-sm">
+            <div className="landing-reveal-delay lg:col-span-6 space-y-4">
+              <div className="rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-sm landing-card-hover">
                 <div className="aspect-[16/9] bg-slate-100 relative overflow-hidden">
                   <img
                     src="/src/assets/images/hero_benin_artisan_1795040955113.jpg"
                     alt="Skilled technician inspecting a modern kitchen sink fixture in Benin City"
                     referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover"
+                    className="landing-hero-image w-full h-full object-cover"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#1A1B25]/75 via-[#1A1B25]/20 to-transparent" />
                   <div className="absolute bottom-4 left-4 right-4 text-white">
@@ -156,7 +192,7 @@ export function LandingPage() {
 
                 <div className="p-5 space-y-4 bg-[#F6F7FB]">
                   {/* AI Price Estimation Preview */}
-                  <div className="bg-white rounded-xl border border-slate-200 border-l-4 border-l-[#FF6B35] p-4">
+                  <div className="bg-white rounded-xl border border-slate-200 p-4">
                     <div className="flex items-center justify-between gap-2 text-xs text-[#6B7280]">
                       <span>AI price estimation preview</span>
                       <span className="text-[#FF6B35] font-medium">Provisional guide</span>
@@ -184,6 +220,7 @@ export function LandingPage() {
                   <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <div className="text-sm font-semibold text-[#1A1B25]">
+                        <span className="landing-status-dot inline-block w-2 h-2 rounded-full bg-[#00C853] mr-2 align-[1px]" />
                         Sample offer · Plumbing professional
                       </div>
                       <div className="text-xs text-[#6B7280] mt-0.5">
@@ -206,10 +243,7 @@ export function LandingPage() {
 
       {/* 1. HOW FixIt WORKS */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="max-w-2xl mb-10">
-          <div className="text-xs font-semibold text-[#635BFF] uppercase tracking-wider mb-2">
-            How FixIt Works
-          </div>
+        <div className="landing-scroll-reveal max-w-2xl mb-10" data-reveal>
           <h2 className="text-2xl sm:text-3xl font-bold text-[#1A1B25] [text-wrap:balance]">
             Four structured steps from request to verified booking
           </h2>
@@ -240,12 +274,11 @@ export function LandingPage() {
           ].map((item) => (
             <div
               key={item.step}
-              className="bg-white rounded-xl border border-slate-200 p-6 flex flex-col justify-between"
+              className="landing-scroll-reveal landing-card-hover bg-white rounded-xl border border-slate-200 p-6 flex flex-col justify-between"
+              data-reveal
+              data-reveal-delay={Number(item.step) * 70}
             >
               <div>
-                <div className="text-xs font-mono-nums font-semibold text-[#FF6B35] mb-3">
-                  {item.step}
-                </div>
                 <h3 className="text-base font-bold text-[#1A1B25] mb-2">{item.title}</h3>
                 <p className="text-sm text-[#6B7280] leading-relaxed">{item.body}</p>
               </div>
@@ -257,11 +290,8 @@ export function LandingPage() {
       {/* 2. POPULAR SERVICES */}
       <section className="bg-white border-y border-slate-200 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
+          <div className="landing-scroll-reveal flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10" data-reveal>
             <div>
-              <div className="text-xs font-semibold text-[#635BFF] uppercase tracking-wider mb-2">
-                Popular Services
-              </div>
               <h2 className="text-2xl sm:text-3xl font-bold text-[#1A1B25]">
                 Essential home & commercial trades in {SUPPORTED_CITIES[0].name}
               </h2>
@@ -276,10 +306,12 @@ export function LandingPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {SERVICE_CATEGORIES.map((cat) => (
+            {SERVICE_CATEGORIES.map((cat, index) => (
               <div
                 key={cat.id}
-                className="bg-[#F6F7FB] rounded-xl border border-slate-200 overflow-hidden flex flex-col"
+                className="landing-scroll-reveal landing-card-hover landing-image-hover bg-[#F6F7FB] rounded-xl border border-slate-200 overflow-hidden flex flex-col"
+                data-reveal
+                data-reveal-delay={(index % 3) * 90}
               >
                 <div className="aspect-[4/3] bg-slate-200 overflow-hidden">
                   <img
@@ -291,7 +323,6 @@ export function LandingPage() {
                 </div>
                 <div className="p-5 flex-1 flex flex-col justify-between bg-white">
                   <div>
-                    <div className="text-xs text-[#6B7280] mb-1">Benin City · Category</div>
                     <h3 className="text-lg font-bold text-[#1A1B25]">{cat.name}</h3>
                     <p className="text-sm text-[#6B7280] mt-2 leading-relaxed">
                       {cat.shortDescription}
@@ -316,10 +347,7 @@ export function LandingPage() {
       {/* 3. HOW AI HELPS YOU (Interactive Live Preview) */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
-          <div className="lg:col-span-5 space-y-5">
-            <div className="text-xs font-semibold text-[#635BFF] uppercase tracking-wider">
-              FixIt Intelligence
-            </div>
+          <div className="landing-scroll-reveal lg:col-span-5 space-y-5" data-reveal>
             <h2 className="text-2xl sm:text-3xl font-bold text-[#1A1B25] [text-wrap:balance]">
               Practical AI that clarifies jobs before workers bid
             </h2>
@@ -342,7 +370,7 @@ export function LandingPage() {
             </ul>
           </div>
 
-          <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
+          <div className="landing-scroll-reveal lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-6 shadow-xs" data-reveal data-reveal-delay={120}>
             <form onSubmit={handleAnalyzePreview} className="space-y-4">
               <label htmlFor="demo-job-input" className="block text-sm font-semibold text-[#1A1B25]">
                 Try FixIt Intelligence on a sample request
@@ -356,9 +384,6 @@ export function LandingPage() {
                 placeholder="Describe what you need and your Benin City location..."
               />
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="text-xs text-[#6B7280]">
-                  Runs on server-side Groq AI with manual fallback
-                </span>
                 <button
                   type="submit"
                   disabled={demoLoading}
@@ -416,7 +441,7 @@ export function LandingPage() {
                     )}
 
                     {demoResult.estimate && (
-                      <div className="bg-white rounded-xl border border-slate-200 border-l-4 border-l-[#FF6B35] p-4">
+                      <div className="bg-white rounded-xl border border-slate-200 p-4">
                         <div className="text-xs text-[#6B7280]">
                           {demoResult.estimate.dataQuality}
                         </div>
@@ -440,31 +465,28 @@ export function LandingPage() {
       {/* 4. WHY CHOOSE FixIt */}
       <section className="bg-white border-y border-slate-200 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-2xl mb-10">
-            <div className="text-xs font-semibold text-[#635BFF] uppercase tracking-wider mb-2">
-              Built for Trust
-            </div>
+          <div className="landing-scroll-reveal max-w-2xl mb-10" data-reveal>
             <h2 className="text-2xl sm:text-3xl font-bold text-[#1A1B25]">
               Why customers and technicians use FixIt
             </h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="space-y-2">
+            <div className="landing-scroll-reveal space-y-2" data-reveal>
               <Lock className="w-5 h-5 text-[#635BFF]" />
               <h3 className="text-base font-bold text-[#1A1B25]">Backend-enforced contact privacy</h3>
               <p className="text-sm text-[#6B7280] leading-relaxed">
                 Phone numbers never appear in public job listings or unconfirmed bookings. Contact endpoints verify verified Stripe payment status before releasing numbers.
               </p>
             </div>
-            <div className="space-y-2">
+            <div className="landing-scroll-reveal space-y-2" data-reveal data-reveal-delay={100}>
               <ShieldCheck className="w-5 h-5 text-[#00C853]" />
               <h3 className="text-base font-bold text-[#1A1B25]">Atomic single-worker booking</h3>
               <p className="text-sm text-[#6B7280] leading-relaxed">
                 Database row locking guarantees only one offer can be accepted per job, automatically closing competing pending offers and preventing double bookings.
               </p>
             </div>
-            <div className="space-y-2">
+            <div className="landing-scroll-reveal space-y-2" data-reveal data-reveal-delay={200}>
               <UserCheck className="w-5 h-5 text-[#FF6B35]" />
               <h3 className="text-base font-bold text-[#1A1B25]">Reviews tied to completed jobs</h3>
               <p className="text-sm text-[#6B7280] leading-relaxed">
@@ -477,11 +499,8 @@ export function LandingPage() {
 
       {/* 5. BECOME A SERVICE PROVIDER */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden grid grid-cols-1 lg:grid-cols-12 items-stretch">
+        <div className="landing-scroll-reveal bg-white rounded-2xl border border-slate-200 overflow-hidden grid grid-cols-1 lg:grid-cols-12 items-stretch" data-reveal>
           <div className="lg:col-span-7 p-8 sm:p-10 flex flex-col justify-center space-y-5">
-            <div className="text-xs font-semibold text-[#FF6B35] uppercase tracking-wider">
-              For Skilled Professionals
-            </div>
             <h2 className="text-2xl sm:text-3xl font-bold text-[#1A1B25] [text-wrap:balance]">
               Receive serious local leads in Benin City without cold chasing
             </h2>
@@ -511,7 +530,7 @@ export function LandingPage() {
 
       {/* 6. FREQUENTLY ASKED QUESTIONS */}
       <section className="bg-white border-t border-slate-200 py-16">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="landing-scroll-reveal max-w-3xl mx-auto px-4 sm:px-6 lg:px-8" data-reveal>
           <h2 className="text-2xl sm:text-3xl font-bold text-[#1A1B25] mb-8 text-center">
             Frequently Asked Questions
           </h2>
@@ -544,7 +563,7 @@ export function LandingPage() {
 
       {/* 7. FINAL CTA */}
       <section className="bg-[#1A1B25] text-white py-14">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-5">
+        <div className="landing-scroll-reveal max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-5" data-reveal>
           <h2 className="text-2xl sm:text-3xl font-bold [text-wrap:balance]">
             Ready to post a job or start receiving offers in Benin City?
           </h2>

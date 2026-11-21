@@ -70,6 +70,7 @@ export function CustomerSettingsPage() {
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [city, setCity] = useState('Benin City');
+  const [address, setAddress] = useState('');
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
@@ -79,6 +80,7 @@ export function CustomerSettingsPage() {
       setFullName(profile.full_name || '');
       setPhoneNumber(profile.phone_number || '');
       setCity(profile.city || 'Benin City');
+      setAddress(profile.address || '');
     }
   }, [profile]);
 
@@ -94,6 +96,7 @@ export function CustomerSettingsPage() {
           full_name: fullName,
           phone_number: phoneNumber,
           city,
+          address,
         }),
       });
       await refreshMe();
@@ -156,6 +159,19 @@ export function CustomerSettingsPage() {
               required
               value={city}
               onChange={(e) => setCity(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3.5 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-[#1A1B25] mb-1.5">
+              Address (protected)
+            </label>
+            <input
+              type="text"
+              required
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="Street and area"
               className="w-full rounded-lg border border-slate-300 px-3.5 py-2 text-sm"
             />
           </div>

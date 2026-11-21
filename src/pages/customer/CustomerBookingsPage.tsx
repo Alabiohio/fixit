@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, CreditCard, Lock, Phone, Star } from 'lucide-react';
 import { AppShell } from '../../components/AppShell';
+import { BookingCancellationAction } from '../../components/BookingCancellationAction';
 import { apiRequest } from '../../lib/api';
 import { formatNaira } from '../../../shared/constants';
-import type { Booking } from '../../types/FixIt';
+import type { Booking } from '../../types/bookam';
 
 interface UnlockedContact {
   full_name: string;
   phone_number: string;
   city: string;
+  address: string;
 }
 
 export function CustomerBookingsPage() {
@@ -16,6 +18,10 @@ export function CustomerBookingsPage() {
   const [contacts, setContacts] = useState<Record<string, UnlockedContact>>({});
   const [loading, setLoading] = useState(true);
   const [payingId, setPayingId] = useState<string | null>(null);
+  const [payingBalanceId, setPayingBalanceId] = useState<string | null>(null);
+  const [confirmingBalanceId, setConfirmingBalanceId] = useState<string | null>(null);
+  const [completingId, setCompletingId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [reviewForm, setReviewForm] = useState<Record<string, { rating: number; comment: string }>>({});
   const [submittingReviewId, setSubmittingReviewId] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -54,6 +60,39 @@ export function CustomerBookingsPage() {
     }
   }
 
+  async function handlePayRemainingBalance(bookingId: string) {
+    setPayingBalanceId(bookingId);
+    setError('');
+    try {
+      const res = await apiRequest<{ checkoutUrl: string }>(
+        '/api/payments/create-balance-checkout-session',
+        {
+          method: 'POST',
+          body: JSON.stringify({ bookingId }),
+        },
+      );
+      window.location.href = res.checkoutUrl;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to start balance payment.');
+      setPayingBalanceId(null);
+    }
+  }
+
+  async function handleConfirmInPersonBalance(bookingId: string) {
+    setConfirmingBalanceId(bookingId);
+    setError('');
+    try {
+      await apiRequest(`/api/bookings/${bookingId}/balance/in-person-confirmation`, {
+        method: 'POST',
+      });
+      await loadBookings();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to confirm in-person payment.');
+    } finally {
+      setConfirmingBalanceId(null);
+    }
+  }
+
   async function handleRevealContact(bookingId: string) {
     setError('');
     try {
@@ -67,6 +106,7 @@ export function CustomerBookingsPage() {
   }
 
   async function handleUpdateStatus(bookingId: string, status: 'completed' | 'cancelled') {
+    if (status === 'completed') setCompletingId(bookingId);
     setError('');
     try {
       await apiRequest(`/api/bookings/${bookingId}/status`, {
@@ -76,6 +116,24 @@ export function CustomerBookingsPage() {
       await loadBookings();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to update booking status.');
+    } finally {
+      if (status === 'completed') setCompletingId(null);
+    }
+  }
+
+  async function handleCancelBooking(bookingId: string, reason: string) {
+    setCancellingId(bookingId);
+    setError('');
+    try {
+      await apiRequest(`/api/bookings/${bookingId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'cancelled', cancellationReason: reason }),
+      });
+      await loadBookings();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to cancel booking.');
+    } finally {
+      setCancellingId(null);
     }
   }
 
@@ -130,6 +188,8 @@ export function CustomerBookingsPage() {
           <div className="space-y-4">
             {bookings.map((b) => {
               const isPaid = b.payment_status === 'paid';
+              const depositInProgress =
+                b.payment_status === 'pending' && b.latest_payment?.status === 'pending';
               const unlocked = contacts[b.id];
               const currentReview = reviewForm[b.id] || { rating: 5, comment: '' };
 
@@ -156,7 +216,7 @@ export function CustomerBookingsPage() {
                         {formatNaira(b.agreed_price)}
                       </div>
                       <div className="text-xs text-[#6B7280] font-mono-nums">
-                        Deposit: {formatNaira(b.deposit_amount)}
+                        20% escrow deposit: {formatNaira(b.deposit_amount)}
                       </div>
                       <div
                         className={`text-xs font-semibold mt-1 ${
@@ -168,6 +228,12 @@ export function CustomerBookingsPage() {
                     </div>
                   </div>
 
+                  <BookingCancellationAction
+                    booking={b}
+                    pending={cancellingId === b.id}
+                    onCancel={(reason) => handleCancelBooking(b.id, reason)}
+                  />
+
                   {b.latest_payment?.notes && (
                     <div className="text-xs text-[#6B7280] bg-[#F6F7FB] rounded-lg px-3 py-2">
                       Stripe currency note: {b.latest_payment.notes}
@@ -175,7 +241,18 @@ export function CustomerBookingsPage() {
                   )}
 
                   {/* Contact Protection Block */}
-                  {!isPaid ? (
+                  {b.booking_status === 'cancellation_pending' ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">
+                      Cancellation is being processed. Do not continue work until the status updates.
+                    </div>
+                  ) : b.booking_status === 'cancelled' ? (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-700">
+                      This booking was cancelled.
+                      {b.payment_status === 'refunded'
+                        ? ' Stripe refund processing has been initiated.'
+                        : ' No successful Stripe payment was available to refund.'}
+                    </div>
+                  ) : !isPaid ? (
                     <div className="bg-[#F6F7FB] rounded-xl border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div className="flex items-center gap-2.5 text-xs text-[#1A1B25]">
                         <Lock className="w-4 h-4 text-[#FF6B35] shrink-0" />
@@ -183,21 +260,21 @@ export function CustomerBookingsPage() {
                           Complete your booking deposit to unlock this worker&apos;s contact information.
                         </span>
                       </div>
-                      {b.booking_status !== 'cancelled' && (
-                        <button
+                      <button
                           type="button"
-                          disabled={payingId === b.id}
+                          disabled={payingId === b.id || depositInProgress}
                           onClick={() => handlePayDeposit(b.id)}
                           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#635BFF] hover:bg-[#4A44C6] text-white text-xs font-semibold whitespace-nowrap shrink-0"
                         >
                           <CreditCard className="w-4 h-4" />
                           {payingId === b.id
                             ? 'Redirecting...'
-                            : b.payment_status === 'failed'
-                              ? 'Retry Deposit Payment'
-                              : 'Pay Deposit'}
-                        </button>
-                      )}
+                            : depositInProgress
+                              ? 'Payment in progress'
+                              : b.payment_status === 'failed'
+                                ? 'Retry Deposit Payment'
+                                : 'Pay Deposit'}
+                      </button>
                     </div>
                   ) : (
                     <div className="bg-emerald-50/60 rounded-xl border border-emerald-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -207,6 +284,9 @@ export function CustomerBookingsPage() {
                           <div>
                             <span className="font-semibold">{unlocked.full_name}:</span>{' '}
                             <span className="font-mono-nums font-bold">{unlocked.phone_number}</span>
+                            <div className="text-xs text-[#6B7280] mt-0.5">
+                              {unlocked.address} · {unlocked.city}
+                            </div>
                           </div>
                         </div>
                       ) : (
@@ -226,18 +306,121 @@ export function CustomerBookingsPage() {
                             View Worker Phone
                           </button>
                         )}
-                        {(b.booking_status === 'confirmed' || b.booking_status === 'in_progress') && (
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateStatus(b.id, 'completed')}
-                            className="px-3.5 py-2 rounded-lg bg-[#00C853] hover:opacity-90 text-white text-xs font-semibold"
-                          >
-                            Mark Completed
-                          </button>
-                        )}
                       </div>
                     </div>
                   )}
+
+                  {isPaid &&
+                    b.booking_status !== 'cancelled' &&
+                    b.booking_status !== 'cancellation_pending' &&
+                    b.cancellation_request?.status !== 'pending_review' &&
+                    b.balance_payment_status !== 'not_applicable' &&
+                    b.agreed_price > b.deposit_amount && (
+                      <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <h3 className="text-sm font-bold text-[#1A1B25]">Remaining 80% balance</h3>
+                            <p className="text-xs text-[#6B7280] mt-1">
+                              {formatNaira(b.agreed_price - b.deposit_amount)} ·{' '}
+                              {b.balance_payment_method === 'in_person'
+                                ? 'In-person payment'
+                                : b.balance_payment_method === 'online'
+                                  ? 'Online payment'
+                                  : 'Choose how to pay'}
+                            </p>
+                          </div>
+                          <span className="text-xs font-semibold capitalize text-[#635BFF]">
+                            {b.balance_payment_status.replace('_', ' ')}
+                          </span>
+                        </div>
+
+                        {b.balance_payment_method === 'in_person' ? (
+                          <div className="space-y-2">
+                            <p className="text-xs text-[#6B7280]">
+                              Customer confirmation: {b.balance_customer_confirmed_at ? 'confirmed' : 'waiting'} ·
+                              {' '}Worker confirmation: {b.balance_worker_confirmed_at ? 'confirmed' : 'waiting'}
+                            </p>
+                            {!b.balance_customer_confirmed_at && (
+                              <button
+                                type="button"
+                                disabled={confirmingBalanceId === b.id}
+                                onClick={() => handleConfirmInPersonBalance(b.id)}
+                                className="px-3.5 py-2 rounded-lg border border-[#635BFF] text-[#635BFF] text-xs font-semibold disabled:opacity-60"
+                              >
+                                {confirmingBalanceId === b.id
+                                  ? 'Confirming...'
+                                  : 'Confirm in-person payment'}
+                              </button>
+                            )}
+                          </div>
+                        ) : b.balance_payment_status === 'paid' ? (
+                          <p className="text-xs text-emerald-700">Remaining balance is confirmed paid.</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {(b.balance_payment_method === null ||
+                              b.balance_payment_status === 'failed') && (
+                              <button
+                                type="button"
+                                disabled={payingBalanceId === b.id}
+                                onClick={() => handlePayRemainingBalance(b.id)}
+                                className="px-3.5 py-2 rounded-lg bg-[#635BFF] text-white text-xs font-semibold disabled:opacity-60"
+                              >
+                                {payingBalanceId === b.id
+                                  ? 'Redirecting...'
+                                  : b.balance_payment_status === 'failed'
+                                    ? 'Retry online payment'
+                                    : 'Pay online with Stripe'}
+                              </button>
+                            )}
+                            {b.balance_payment_method === null && (
+                              <button
+                                type="button"
+                                disabled={confirmingBalanceId === b.id}
+                                onClick={() => handleConfirmInPersonBalance(b.id)}
+                                className="px-3.5 py-2 rounded-lg border border-slate-300 text-[#1A1B25] text-xs font-semibold disabled:opacity-60"
+                              >
+                                {confirmingBalanceId === b.id
+                                  ? 'Confirming...'
+                                  : 'Record in-person payment'}
+                              </button>
+                            )}
+                            {b.balance_payment_method === 'online' &&
+                              b.balance_payment_status === 'pending' && (
+                                <span className="self-center text-xs text-[#6B7280]">
+                                  Waiting for Stripe confirmation.
+                                </span>
+                              )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                  {isPaid &&
+                    b.booking_status !== 'cancellation_pending' &&
+                    (b.booking_status === 'confirmed' || b.booking_status === 'in_progress') && (
+                      <section className="bg-white rounded-xl border border-[#00C853]/30 p-4 space-y-3">
+                        <div>
+                          <h3 className="text-sm font-bold text-[#1A1B25]">Finish this booking</h3>
+                          <p className="text-xs text-[#6B7280] mt-1">
+                            {b.balance_payment_status === 'paid'
+                              ? 'Confirm the work is finished. Eligible funds are credited to the worker’s FixIt wallet, and you can leave a review.'
+                              : 'You can mark the work complete now and pay the remaining balance below. Eligible funds are credited to the worker’s wallet after both completion and balance payment are confirmed. In-person payments require confirmation from both participants.'}
+                          </p>
+                        </div>
+                        {b.cancellation_request?.status !== 'pending_review' && (
+                          <button
+                            type="button"
+                            disabled={completingId === b.id}
+                            onClick={() => handleUpdateStatus(b.id, 'completed')}
+                            className="px-4 py-2 rounded-lg bg-[#00C853] hover:opacity-90 text-white text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {completingId === b.id
+                              ? 'Completing booking...'
+                              : 'Mark Completed & Release Funds'}
+                          </button>
+                        )}
+                      </section>
+                    )}
 
                   {/* Review Worker Form for Completed Bookings */}
                   {b.booking_status === 'completed' && (

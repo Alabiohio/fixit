@@ -8,7 +8,7 @@ interface PriceEstimateCardProps {
 
 export function PriceEstimateCard({ estimate }: PriceEstimateCardProps) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 border-l-4 border-l-[#FF6B35] p-5 shadow-xs">
+    <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="text-xs font-medium text-[#6B7280]">
           FixIt Intelligence · {estimate.dataQuality}
@@ -28,7 +28,9 @@ export function PriceEstimateCard({ estimate }: PriceEstimateCardProps) {
           </div>
         </div>
         <div>
-          <div className="text-xs text-[#6B7280] mb-1">Suggested booking deposit</div>
+          <div className="text-xs text-[#6B7280] mb-1">
+            Indicative deposit (final is 20% of agreed price)
+          </div>
           <div className="text-2xl font-bold text-[#FF6B35] font-mono-nums">
             {formatNaira(estimate.suggestedDeposit)}
           </div>

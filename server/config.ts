@@ -68,6 +68,10 @@ export function getStripeWebhookSecret(): string {
   return (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
 }
 
+export function getPaystackSecretKey(): string {
+  return (process.env.PAYSTACK_SECRET_KEY || '').trim();
+}
+
 export function getDefaultCurrency(): string {
   return (process.env.FixIt_DEFAULT_CURRENCY || 'ngn').trim().toLowerCase();
 }

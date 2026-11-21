@@ -1,8 +1,10 @@
 import express, { type Express } from 'express';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import {
   CATEGORY_NAMES,
   DEFAULT_LOCAL_PRICING,
+  formatNaira,
   SERVICE_CATEGORIES,
   SUPPORTED_CITIES,
   URGENCY_LEVELS,
@@ -17,10 +19,23 @@ import {
 } from './ai.ts';
 import {
   getDefaultCurrency,
-  getDefaultDeposit,
+  getPaystackSecretKey,
   getPublicAppConfig,
 } from './config.ts';
-import { createDepositCheckoutSession, handleStripeWebhookEvent } from './stripe.ts';
+import {
+  createBalanceCheckoutSession,
+  createDepositCheckoutSession,
+  handleStripeWebhookEvent,
+  getStripeClient,
+  refundPaymentIntent,
+} from './stripe.ts';
+import {
+  createPaystackRecipient,
+  createPaystackTransfer,
+  handlePaystackTransferWebhook,
+  listPaystackNigerianBanks,
+  PaystackTransportError,
+} from './paystack.ts';
 import {
   getSupabaseAdmin,
   requireAuth,
@@ -151,6 +166,37 @@ export function registerRoutes(app: Express): void {
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Webhook verification failed';
         console.error('[FixIt Stripe Webhook Error]', message);
+        res.status(400).json({ error: message });
+      }
+    },
+  );
+
+  app.post(
+    '/api/paystack/webhook',
+    express.raw({ type: 'application/json' }),
+    async (req, res) => {
+      const admin = getSupabaseAdmin();
+      if (!admin) {
+        res.status(503).json({ error: 'Supabase is not configured.' });
+        return;
+      }
+
+      const signature = req.headers['x-paystack-signature'];
+      if (!signature || typeof signature !== 'string') {
+        res.status(400).json({ error: 'Missing x-paystack-signature header.' });
+        return;
+      }
+
+      try {
+        const result = await handlePaystackTransferWebhook(
+          req.body as Buffer,
+          signature,
+          admin,
+        );
+        res.json(result);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Paystack webhook verification failed.';
+        console.error('[FixIt Paystack Webhook Error]', message);
         res.status(400).json({ error: message });
       }
     },
@@ -379,6 +425,7 @@ export function registerRoutes(app: Express): void {
       phone_number: z.string().trim().min(7).max(30),
       avatar_url: z.string().max(1000).optional().default(''),
       city: z.string().trim().min(2).max(80).optional().default('Benin City'),
+      address: z.string().trim().max(240).optional().default(''),
     });
 
     const parsed = schema.safeParse(req.body);
@@ -413,6 +460,7 @@ export function registerRoutes(app: Express): void {
       full_name: z.string().trim().min(2).max(120).optional(),
       phone_number: z.string().trim().min(7).max(30).optional(),
       avatar_url: z.string().max(1000).optional(),
+      address: z.string().trim().max(240).optional(),
       bio: z.string().trim().min(10).max(1000),
       service_categories: z.array(z.string()).min(1),
       service_locations: z.array(z.string()).min(1),
@@ -428,11 +476,12 @@ export function registerRoutes(app: Express): void {
     const admin = req.supabaseAdmin!;
     const user = req.authUser!;
 
-    if (parsed.data.full_name || parsed.data.phone_number || parsed.data.avatar_url !== undefined) {
+    if (parsed.data.full_name || parsed.data.phone_number || parsed.data.avatar_url !== undefined || parsed.data.address !== undefined) {
       const profileUpdate: Record<string, string> = {};
       if (parsed.data.full_name) profileUpdate.full_name = parsed.data.full_name;
       if (parsed.data.phone_number) profileUpdate.phone_number = parsed.data.phone_number;
       if (parsed.data.avatar_url !== undefined) profileUpdate.avatar_url = parsed.data.avatar_url;
+      if (parsed.data.address !== undefined) profileUpdate.address = parsed.data.address;
 
       await admin
         .from('profiles')
@@ -683,7 +732,7 @@ export function registerRoutes(app: Express): void {
 
     const { data: booking } = await admin
       .from('bookings')
-      .select('id, job_id, offer_id, customer_id, worker_id, agreed_price, deposit_amount, currency, payment_status, booking_status, created_at')
+      .select('id, job_id, offer_id, customer_id, worker_id, agreed_price, deposit_amount, currency, payment_status, balance_payment_status, balance_payment_method, balance_customer_confirmed_at, balance_worker_confirmed_at, booking_status, created_at')
       .eq('job_id', jobId)
       .maybeSingle();
 
@@ -749,6 +798,47 @@ export function registerRoutes(app: Express): void {
       .eq('status', 'pending');
 
     res.json({ job: updated });
+  });
+
+  app.delete('/api/jobs/:id', requireAuth, async (req: AuthenticatedRequest, res) => {
+    const parsedJobId = z.string().uuid().safeParse(req.params.id);
+    if (!parsedJobId.success) {
+      res.status(400).json({ error: 'A valid job ID is required.' });
+      return;
+    }
+
+    const admin = req.supabaseAdmin!;
+    const { data: result, error } = await admin.rpc('delete_unbooked_customer_job', {
+      p_job_id: parsedJobId.data,
+      p_customer_id: req.authUser!.id,
+    });
+
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+    if (result === 'not_found') {
+      res.status(404).json({ error: 'Job not found.' });
+      return;
+    }
+    if (result === 'forbidden') {
+      res.status(403).json({ error: 'Only the job owner can delete this job.' });
+      return;
+    }
+    if (result === 'job_not_deletable') {
+      res.status(409).json({ error: 'Only open or cancelled jobs can be deleted.' });
+      return;
+    }
+    if (result === 'has_booking') {
+      res.status(409).json({ error: 'Jobs with booking history cannot be deleted.' });
+      return;
+    }
+    if (result !== 'deleted') {
+      res.status(500).json({ error: 'Unable to delete job.' });
+      return;
+    }
+
+    res.json({ success: true });
   });
 
   // ============================================================================
@@ -927,6 +1017,118 @@ export function registerRoutes(app: Express): void {
     res.json({ offer: updated });
   });
 
+  app.post('/api/offers/:id/negotiate', requireAuth, async (req: AuthenticatedRequest, res) => {
+    const schema = z.object({
+      proposed_price: z.number().int().positive().max(50000000),
+      message: z.string().trim().max(1000).optional().default(''),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]?.message || 'Invalid counteroffer.' });
+      return;
+    }
+
+    const admin = req.supabaseAdmin!;
+    const actorId = req.authUser!.id;
+    const { data, error } = await admin.rpc('submit_offer_counteroffer', {
+      p_offer_id: req.params.id,
+      p_actor_id: actorId,
+      p_proposed_price: parsed.data.proposed_price,
+      p_message: parsed.data.message,
+    });
+    const offer = Array.isArray(data) ? data[0] : data;
+
+    if (error || !offer) {
+      res.status(400).json({ error: error?.message || 'Unable to submit counteroffer.' });
+      return;
+    }
+
+    const { data: job } = await admin
+      .from('jobs')
+      .select('title, customer_id')
+      .eq('id', offer.job_id)
+      .maybeSingle();
+    const recipientId = actorId === job?.customer_id ? offer.worker_id : job?.customer_id;
+
+    if (recipientId) {
+      await admin.from('notifications').insert({
+        user_id: recipientId,
+        title: 'Counteroffer received',
+        message: `A new ₦${parsed.data.proposed_price.toLocaleString('en-NG')} counteroffer was sent for "${job?.title || 'a job'}".`,
+        type: 'offer_negotiation',
+        link: actorId === job?.customer_id ? '/worker/offers' : `/customer/jobs/${offer.job_id}`,
+      });
+    }
+
+    res.json({ offer });
+  });
+
+  app.post('/api/offers/:id/accept-counteroffer', requireAuth, async (req: AuthenticatedRequest, res) => {
+    const admin = req.supabaseAdmin!;
+    const actorId = req.authUser!.id;
+    const { data, error } = await admin.rpc('accept_offer_counteroffer', {
+      p_offer_id: req.params.id,
+      p_actor_id: actorId,
+    });
+    const offer = Array.isArray(data) ? data[0] : data;
+
+    if (error || !offer) {
+      res.status(400).json({ error: error?.message || 'Unable to accept counteroffer.' });
+      return;
+    }
+
+    const { data: job } = await admin
+      .from('jobs')
+      .select('title, customer_id')
+      .eq('id', offer.job_id)
+      .maybeSingle();
+    if (job?.customer_id) {
+      await admin.from('notifications').insert({
+        user_id: job.customer_id,
+        title: 'Counteroffer accepted',
+        message: `The worker accepted your ₦${offer.proposed_price.toLocaleString('en-NG')} counteroffer for "${job.title}".`,
+        type: 'offer_negotiation',
+        link: `/customer/jobs/${offer.job_id}`,
+      });
+    }
+
+    res.json({ offer });
+  });
+
+  app.post('/api/offers/:id/decline', requireAuth, async (req: AuthenticatedRequest, res) => {
+    const admin = req.supabaseAdmin!;
+    const actorId = req.authUser!.id;
+    const { data, error } = await admin.rpc('decline_worker_offer', {
+      p_offer_id: req.params.id,
+      p_actor_id: actorId,
+    });
+    const offer = Array.isArray(data) ? data[0] : data;
+
+    if (error || !offer) {
+      res.status(400).json({ error: error?.message || 'Unable to decline offer.' });
+      return;
+    }
+
+    const { data: job } = await admin
+      .from('jobs')
+      .select('title, customer_id')
+      .eq('id', offer.job_id)
+      .maybeSingle();
+    const recipientId = actorId === job?.customer_id ? offer.worker_id : job?.customer_id;
+
+    if (recipientId) {
+      await admin.from('notifications').insert({
+        user_id: recipientId,
+        title: 'Offer declined',
+        message: `The offer for "${job?.title || 'a job'}" was declined.`,
+        type: 'offer_declined',
+        link: actorId === job?.customer_id ? '/worker/offers' : `/customer/jobs/${offer.job_id}`,
+      });
+    }
+
+    res.json({ offer });
+  });
+
   // Atomic Offer Acceptance
   app.post('/api/jobs/:id/accept-offer', requireAuth, async (req: AuthenticatedRequest, res) => {
     const schema = z.object({ offerId: z.string().uuid() });
@@ -942,7 +1144,7 @@ export function registerRoutes(app: Express): void {
 
     const { data: job } = await admin
       .from('jobs')
-      .select('id, customer_id, suggested_deposit')
+      .select('id, customer_id')
       .eq('id', jobId)
       .maybeSingle();
 
@@ -955,10 +1157,31 @@ export function registerRoutes(app: Express): void {
       return;
     }
 
-    const depositAmount =
-      job.suggested_deposit && job.suggested_deposit > 0
-        ? job.suggested_deposit
-        : getDefaultDeposit();
+    const { data: offer } = await admin
+      .from('offers')
+      .select('id, proposed_price, status, negotiation_by, negotiation_pending')
+      .eq('id', parsed.data.offerId)
+      .eq('job_id', jobId)
+      .maybeSingle();
+
+    if (!offer) {
+      res.status(404).json({ error: 'Offer not found.' });
+      return;
+    }
+
+    if (offer.status !== 'pending') {
+      res.status(400).json({ error: 'This offer is no longer available.' });
+      return;
+    }
+    if (offer.negotiation_pending && offer.negotiation_by === customerId) {
+      res.status(400).json({ error: 'Wait for the worker to respond to your counteroffer.' });
+      return;
+    }
+
+    const depositAmount = Math.min(
+      Number(offer.proposed_price),
+      Math.max(Math.round(Number(offer.proposed_price) * 0.20), 1),
+    );
     const currency = getDefaultCurrency();
 
     const { data, error } = await admin.rpc('accept_worker_offer', {
@@ -981,6 +1204,253 @@ export function registerRoutes(app: Express): void {
   // ============================================================================
   // BOOKINGS & STRICT CONTACT PROTECTION ENDPOINTS
   // ============================================================================
+  app.get('/api/paystack/banks', requireAuth, async (_req: AuthenticatedRequest, res) => {
+    try {
+      res.json({ banks: await listPaystackNigerianBanks() });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unable to load Nigerian banks.';
+      res.status(message === 'PAYSTACK_NOT_CONFIGURED' ? 503 : 502).json({ error: message });
+    }
+  });
+
+  app.get('/api/payouts/paystack-account', requireAuth, async (req: AuthenticatedRequest, res) => {
+    const admin = req.supabaseAdmin!;
+    const userId = req.authUser!.id;
+    const { data: account, error } = await admin
+      .from('worker_payout_accounts')
+      .select('bank_name, account_name, account_last4')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+
+    res.json({
+      configured: Boolean(getPaystackSecretKey()),
+      account: account || null,
+    });
+  });
+
+  app.put('/api/payouts/paystack-account', requireAuth, async (req: AuthenticatedRequest, res) => {
+    const schema = z.object({
+      account_number: z.string().regex(/^\d{10}$/, 'Enter a valid 10-digit Nigerian account number.'),
+      bank_code: z.string().trim().min(1).max(32),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]?.message || 'Invalid bank account details.' });
+      return;
+    }
+    if (!getPaystackSecretKey()) {
+      res.status(503).json({ error: 'Paystack transfers are not configured on the server.' });
+      return;
+    }
+
+    const admin = req.supabaseAdmin!;
+    try {
+      const recipient = await createPaystackRecipient({
+        accountNumber: parsed.data.account_number,
+        bankCode: parsed.data.bank_code,
+      });
+      const { error } = await admin.from('worker_payout_accounts').upsert(
+        {
+          user_id: req.authUser!.id,
+          recipient_code: recipient.recipientCode,
+          bank_code: recipient.bankCode,
+          bank_name: recipient.bankName,
+          account_name: recipient.accountName,
+          account_last4: recipient.accountLast4,
+        },
+        { onConflict: 'user_id' },
+      );
+
+      if (error) {
+        res.status(500).json({ error: `Could not save payout account: ${error.message}` });
+        return;
+      }
+
+      res.json({
+        account: {
+          bank_name: recipient.bankName,
+          account_name: recipient.accountName,
+          account_last4: recipient.accountLast4,
+        },
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unable to verify payout account.';
+      res.status(message === 'PAYSTACK_NOT_CONFIGURED' ? 503 : 400).json({ error: message });
+    }
+  });
+
+  app.get('/api/worker/wallet', requireAuth, async (req: AuthenticatedRequest, res) => {
+    const admin = req.supabaseAdmin!;
+    const workerId = req.authUser!.id;
+    const [{ data: wallet, error: walletError }, { data: transactions, error: transactionsError }] =
+      await Promise.all([
+        admin
+          .from('worker_wallets')
+          .select('worker_id, available_balance, updated_at')
+          .eq('worker_id', workerId)
+          .maybeSingle(),
+        admin
+          .from('worker_wallet_transactions')
+          .select('id, booking_id, transaction_type, amount, status, reference, description, transfer_code, failure_reason, created_at')
+          .eq('worker_id', workerId)
+          .order('created_at', { ascending: false })
+          .limit(50),
+      ]);
+
+    if (walletError || transactionsError) {
+      res.status(500).json({ error: walletError?.message || transactionsError?.message });
+      return;
+    }
+
+    res.json({
+      wallet: wallet || { worker_id: workerId, available_balance: 0, updated_at: null },
+      transactions: transactions || [],
+    });
+  });
+
+  app.post('/api/worker/wallet/withdraw', requireAuth, async (req: AuthenticatedRequest, res) => {
+    if (!getPaystackSecretKey()) {
+      res.status(503).json({ error: 'Paystack transfers are not configured on the server.' });
+      return;
+    }
+
+    const admin = req.supabaseAdmin!;
+    const workerId = req.authUser!.id;
+    const { data: payoutAccount, error: accountError } = await admin
+      .from('worker_payout_accounts')
+      .select('recipient_code')
+      .eq('user_id', workerId)
+      .maybeSingle();
+
+    if (accountError || !payoutAccount) {
+      res.status(400).json({
+        error: accountError?.message || 'Add and verify your Paystack bank account before withdrawing.',
+      });
+      return;
+    }
+
+    const reference = `fixit-wallet-${randomUUID().replace(/-/g, '').slice(0, 20)}`;
+    const { data: reservation, error: reservationError } = await admin.rpc(
+      'reserve_worker_wallet_withdrawal',
+      {
+        p_worker_id: workerId,
+        p_reference: reference,
+      },
+    );
+    if (reservationError) {
+      res.status(400).json({ error: reservationError.message });
+      return;
+    }
+
+    const withdrawal = Array.isArray(reservation) ? reservation[0] : reservation;
+    if (!withdrawal?.amount) {
+      res.status(500).json({ error: 'Wallet withdrawal was not reserved.' });
+      return;
+    }
+
+    try {
+      const transfer = await createPaystackTransfer({
+        amountNgn: Number(withdrawal.amount),
+        recipientCode: payoutAccount.recipient_code,
+        reference,
+        reason: `FixIt wallet withdrawal for worker ${workerId}`,
+      });
+
+      const transferStatus = transfer.status.toLowerCase();
+      if (transferStatus === 'success' || transferStatus === 'failed') {
+        const { error: finalizeError } = await admin.rpc('finalize_worker_wallet_withdrawal', {
+          p_reference: reference,
+          p_status: transferStatus === 'success' ? 'completed' : 'failed',
+          p_transfer_code: transfer.transfer_code || null,
+          p_failure_reason: transferStatus === 'failed' ? 'Paystack transfer failed.' : '',
+          p_allow_reversal: false,
+        });
+        if (finalizeError) {
+          res.status(500).json({
+            error: `Paystack responded, but FixIt could not update the wallet withdrawal. Reference: ${reference}`,
+          });
+          return;
+        }
+      } else {
+        const requiresOtp = transferStatus === 'otp';
+        const { error: transferUpdateError } = await admin
+          .from('worker_wallet_transactions')
+          .update({
+            transfer_code: transfer.transfer_code || null,
+            failure_reason: requiresOtp
+              ? 'Paystack requires an administrator to approve this transfer from the Paystack dashboard.'
+              : '',
+          })
+          .eq('reference', reference)
+          .eq('status', 'pending');
+        if (transferUpdateError) {
+          res.status(500).json({
+            error: `Paystack started the transfer, but FixIt could not save its status. Reference: ${reference}`,
+          });
+          return;
+        }
+      }
+
+      const { data: savedWithdrawal, error: withdrawalReadError } = await admin
+        .from('worker_wallet_transactions')
+        .select('id, booking_id, transaction_type, amount, status, reference, description, transfer_code, failure_reason, created_at')
+        .eq('reference', reference)
+        .single();
+      if (withdrawalReadError) {
+        res.status(500).json({ error: withdrawalReadError.message });
+        return;
+      }
+
+      if (savedWithdrawal.status === 'failed') {
+        res.status(502).json({
+          error: savedWithdrawal.failure_reason || 'Paystack transfer failed; funds were returned to your wallet.',
+          withdrawal: savedWithdrawal,
+        });
+        return;
+      }
+      res.json({ withdrawal: savedWithdrawal });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Paystack withdrawal could not be started.';
+      if (err instanceof PaystackTransportError) {
+        const { error: recordError } = await admin
+          .from('worker_wallet_transactions')
+          .update({ failure_reason: message })
+          .eq('reference', reference)
+          .eq('status', 'pending');
+        if (recordError) {
+          res.status(500).json({
+            error: `Transfer status is unknown and could not be recorded. Verify it in Paystack before retrying. Reference: ${reference}`,
+          });
+          return;
+        }
+        res.status(202).json({
+          withdrawal: { ...withdrawal, failure_reason: message },
+          warning: 'Do not retry until this transfer is checked in Paystack.',
+        });
+        return;
+      }
+
+      const { error: refundError } = await admin.rpc('finalize_worker_wallet_withdrawal', {
+        p_reference: reference,
+        p_status: 'failed',
+        p_failure_reason: message,
+        p_allow_reversal: false,
+      });
+      if (refundError) {
+        res.status(500).json({
+          error: `Paystack rejected the transfer and the wallet refund could not be recorded. Contact FixIt support. Reference: ${reference}`,
+        });
+        return;
+      }
+      res.status(message === 'PAYSTACK_NOT_CONFIGURED' ? 503 : 502).json({ error: message });
+    }
+  });
+
   app.get('/api/bookings/my', requireAuth, async (req: AuthenticatedRequest, res) => {
     const admin = req.supabaseAdmin!;
     const userId = req.authUser!.id;
@@ -1005,7 +1475,14 @@ export function registerRoutes(app: Express): void {
     );
     const bookingIds = bookingRows.map((b) => b.id);
 
-    const [{ data: jobs }, { data: counterparts }, { data: payments }, { data: reviews }] =
+    const [
+      { data: jobs },
+      { data: counterparts },
+      { data: payments },
+      { data: reviews },
+      { data: walletCredits },
+      { data: cancellationRequests, error: cancellationRequestError },
+    ] =
       await Promise.all([
         jobIds.length > 0
           ? admin.from('jobs').select('id, title, category, location, urgency, description').in('id', jobIds)
@@ -1023,10 +1500,37 @@ export function registerRoutes(app: Express): void {
         bookingIds.length > 0
           ? admin.from('reviews').select('id, booking_id, rating, comment, created_at').in('booking_id', bookingIds)
           : Promise.resolve({ data: [] }),
+        role === 'worker' && bookingIds.length > 0
+          ? admin
+              .from('worker_wallet_transactions')
+              .select('booking_id, amount')
+              .eq('worker_id', userId)
+              .eq('transaction_type', 'credit')
+              .eq('status', 'completed')
+              .in('booking_id', bookingIds)
+          : Promise.resolve({ data: [] }),
+        bookingIds.length > 0
+          ? admin
+              .from('booking_cancellation_requests')
+              .select('id, booking_id, requested_by, reason, status, review_note, created_at')
+              .in('booking_id', bookingIds)
+              .order('created_at', { ascending: false })
+          : Promise.resolve({ data: [], error: null }),
       ]);
+
+    if (cancellationRequestError) {
+      res.status(500).json({ error: cancellationRequestError.message });
+      return;
+    }
 
     const jobMap = new Map((jobs || []).map((j) => [j.id, j]));
     const counterpartMap = new Map((counterparts || []).map((p) => [p.id, p]));
+    const cancellationRequestMap = new Map();
+    for (const request of cancellationRequests || []) {
+      if (!cancellationRequestMap.has(request.booking_id)) {
+        cancellationRequestMap.set(request.booking_id, request);
+      }
+    }
 
     // NEVER return phone_number or email here! Contact details only come from /api/bookings/:id/contact
     const enriched = bookingRows.map((b) => {
@@ -1034,6 +1538,7 @@ export function registerRoutes(app: Express): void {
       const cp = counterpartMap.get(cpId);
       const latestPayment = (payments || []).find((p) => p.booking_id === b.id) || null;
       const review = (reviews || []).find((r) => r.booking_id === b.id) || null;
+      const walletCredit = (walletCredits || []).find((transaction) => transaction.booking_id === b.id);
       return {
         ...b,
         job: jobMap.get(b.job_id) || null,
@@ -1043,7 +1548,9 @@ export function registerRoutes(app: Express): void {
           avatar_url: cp?.avatar_url || '',
         },
         latest_payment: latestPayment,
+        cancellation_request: cancellationRequestMap.get(b.id) || null,
         review,
+        wallet_credit: walletCredit?.amount || 0,
       };
     });
 
@@ -1088,7 +1595,7 @@ export function registerRoutes(app: Express): void {
     const targetUserId = isCustomer ? booking.worker_id : booking.customer_id;
     const { data: targetProfile } = await admin
       .from('profiles')
-      .select('id, full_name, phone_number, city')
+      .select('id, full_name, phone_number, city, address')
       .eq('id', targetUserId)
       .maybeSingle();
 
@@ -1099,13 +1606,56 @@ export function registerRoutes(app: Express): void {
         full_name: targetProfile?.full_name || 'FixIt User',
         phone_number: targetProfile?.phone_number || 'Phone number not provided yet',
         city: targetProfile?.city || 'Benin City',
+        address: targetProfile?.address || 'Address not provided yet',
       },
     });
   });
 
+  app.post(
+    '/api/bookings/:id/balance/in-person-confirmation',
+    requireAuth,
+    async (req: AuthenticatedRequest, res) => {
+      const admin = req.supabaseAdmin!;
+      const actorId = req.authUser!.id;
+      const { data: booking, error } = await admin.rpc('confirm_in_person_balance_payment', {
+        p_booking_id: req.params.id,
+        p_actor_id: actorId,
+      });
+      const updatedBooking = Array.isArray(booking) ? booking[0] : booking;
+
+      if (error || !updatedBooking) {
+        res.status(400).json({
+          error: error?.message || 'Unable to confirm in-person balance payment.',
+        });
+        return;
+      }
+
+      const recipientId =
+        actorId === updatedBooking.customer_id
+          ? updatedBooking.worker_id
+          : updatedBooking.customer_id;
+      await admin.from('notifications').insert({
+        user_id: recipientId,
+        title:
+          updatedBooking.balance_payment_status === 'paid'
+            ? 'In-person balance confirmed'
+            : 'In-person payment confirmation needed',
+        message:
+          updatedBooking.balance_payment_status === 'paid'
+            ? 'Both participants confirmed the remaining in-person balance was paid.'
+            : 'The other participant reported the remaining balance as paid in person. Please confirm or contact them.',
+        type: 'balance_payment_confirmation',
+        link: actorId === updatedBooking.customer_id ? '/worker/bookings' : '/customer/bookings',
+      });
+
+      res.json({ booking: updatedBooking });
+    },
+  );
+
   app.patch('/api/bookings/:id/status', requireAuth, async (req: AuthenticatedRequest, res) => {
     const schema = z.object({
       status: z.enum(['in_progress', 'completed', 'cancelled']),
+      cancellationReason: z.string().trim().max(1000).optional().default(''),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
@@ -1137,8 +1687,212 @@ export function registerRoutes(app: Express): void {
 
     const nextStatus = parsed.data.status;
 
+    if (nextStatus === 'cancelled') {
+      if (booking.booking_status === 'in_progress' && parsed.data.cancellationReason.length < 10) {
+        res.status(400).json({ error: 'Please explain why you are requesting cancellation (at least 10 characters).' });
+        return;
+      }
+
+      const { data: cancellation, error: cancellationError } = await admin.rpc(
+        'begin_booking_cancellation',
+        {
+          p_booking_id: bookingId,
+          p_actor_id: userId,
+          p_reason: parsed.data.cancellationReason,
+        },
+      );
+      if (cancellationError) {
+        res.status(500).json({ error: cancellationError.message });
+        return;
+      }
+
+      if (cancellation?.result === 'not_found') {
+        res.status(404).json({ error: 'Booking not found.' });
+        return;
+      }
+      if (cancellation?.result === 'forbidden') {
+        res.status(403).json({ error: 'Only booking participants can request cancellation.' });
+        return;
+      }
+      if (cancellation?.result === 'not_cancellable') {
+        res.status(409).json({ error: 'Completed or cancelled bookings cannot be cancelled.' });
+        return;
+      }
+      if (cancellation?.result === 'pending_review') {
+        const recipientId = isCustomer ? booking.worker_id : booking.customer_id;
+        const { error: notificationError } = await admin.from('notifications').insert({
+          user_id: recipientId,
+          title: 'Booking cancellation needs review',
+          message: 'A participant requested cancellation. The booking remains active and no refund has been issued yet.',
+          type: 'booking_cancellation_review',
+          link: isCustomer ? '/worker/bookings' : '/customer/bookings',
+        });
+        if (notificationError) {
+          console.error('[FixIt] Could not notify booking participant about cancellation review:', notificationError);
+        }
+
+        res.status(202).json({
+          cancellationRequest: {
+            id: cancellation.request_id,
+            status: 'pending_review',
+          },
+        });
+        return;
+      }
+      if (cancellation?.result !== 'processing' || typeof cancellation.request_id !== 'string') {
+        res.status(409).json({ error: 'A cancellation request is already being processed.' });
+        return;
+      }
+
+      let refundStarted = false;
+      let depositRefunded = false;
+      let balanceRefunded = false;
+      try {
+        const { data: paymentRows, error: paymentReadError } = await admin
+          .from('payments')
+          .select('id, payment_type, status, stripe_session_id, stripe_payment_intent_id, stripe_refund_id')
+          .eq('booking_id', bookingId)
+          .in('status', ['pending', 'succeeded', 'refunded']);
+        if (paymentReadError) throw paymentReadError;
+
+        const stripePayments = paymentRows || [];
+        for (const payment of stripePayments) {
+          if (payment.status === 'refunded') {
+            if (payment.payment_type === 'deposit') depositRefunded = true;
+            if (payment.payment_type === 'balance') balanceRefunded = true;
+            continue;
+          }
+
+          let paymentIntentId = payment.stripe_payment_intent_id;
+          if (payment.status === 'pending' && payment.stripe_session_id) {
+            const stripe = getStripeClient();
+            if (!stripe) throw new Error('STRIPE_NOT_CONFIGURED');
+
+            const session = await stripe.checkout.sessions.retrieve(payment.stripe_session_id);
+            if (session.status === 'open') {
+              await stripe.checkout.sessions.expire(session.id);
+              const { error: expireUpdateError } = await admin
+                .from('payments')
+                .update({ status: 'expired' })
+                .eq('id', payment.id);
+              if (expireUpdateError) throw expireUpdateError;
+              continue;
+            }
+
+            if (session.payment_status !== 'paid') {
+              const { error: expireUpdateError } = await admin
+                .from('payments')
+                .update({ status: 'expired' })
+                .eq('id', payment.id);
+              if (expireUpdateError) throw expireUpdateError;
+              continue;
+            }
+
+            paymentIntentId =
+              typeof session.payment_intent === 'string'
+                ? session.payment_intent
+                : session.payment_intent?.id || null;
+          }
+
+          if (payment.status === 'succeeded' && !paymentIntentId) {
+            throw new Error('A successful Stripe payment is missing its payment intent; contact FixIt support.');
+          }
+          if (!paymentIntentId) continue;
+
+          const refund = await refundPaymentIntent(paymentIntentId, `fixit-cancel-${payment.id}`);
+          if (refund.status === 'failed') {
+            throw new Error(`Stripe could not refund payment ${payment.id}. Contact FixIt support.`);
+          }
+          refundStarted = true;
+
+          const { error: refundUpdateError } = await admin
+            .from('payments')
+            .update({
+              status: 'refunded',
+              stripe_payment_intent_id: paymentIntentId,
+              stripe_refund_id: refund.id,
+            })
+            .eq('id', payment.id);
+          if (refundUpdateError) throw refundUpdateError;
+
+          if (payment.payment_type === 'deposit') depositRefunded = true;
+          if (payment.payment_type === 'balance') balanceRefunded = true;
+        }
+
+        if (booking.payment_status === 'paid' && !depositRefunded) {
+          throw new Error('The paid deposit could not be matched to a refundable Stripe payment. Contact FixIt support.');
+        }
+
+        const { data: finished, error: finishError } = await admin.rpc(
+          'finish_booking_cancellation',
+          {
+            p_request_id: cancellation.request_id,
+            p_succeeded: true,
+            p_deposit_refunded: depositRefunded,
+            p_balance_refunded: balanceRefunded,
+            p_review_note: refundStarted
+              ? 'Stripe refund issued before work started.'
+              : 'Booking cancelled before work started; no successful Stripe payment needed a refund.',
+          },
+        );
+        if (finishError) throw finishError;
+        if (finished !== 'cancelled' && finished !== 'already_cancelled') {
+          throw new Error('Unable to finalize booking cancellation.');
+        }
+      } catch (cancellationErr) {
+        const message =
+          cancellationErr instanceof Error
+            ? cancellationErr.message
+            : 'Unable to cancel booking.';
+        if (!refundStarted) {
+          const { error: rollbackError } = await admin.rpc('finish_booking_cancellation', {
+            p_request_id: cancellation.request_id,
+            p_succeeded: false,
+            p_deposit_refunded: false,
+            p_balance_refunded: false,
+            p_review_note: message,
+          });
+          if (rollbackError) {
+            console.error('[FixIt] Could not restore booking after cancellation failure:', rollbackError);
+          }
+        }
+        res.status(502).json({ error: message });
+        return;
+      }
+
+      const { error: cancelNotificationError } = await admin.from('notifications').insert({
+        user_id: isCustomer ? booking.worker_id : booking.customer_id,
+        title: 'Booking cancelled',
+        message:
+          depositRefunded || balanceRefunded
+            ? 'The booking was cancelled. Stripe refunds for successful payments have been initiated.'
+            : 'The booking was cancelled before work started.',
+        type: 'booking_cancelled',
+        link: isCustomer ? '/worker/bookings' : '/customer/bookings',
+      });
+      if (cancelNotificationError) {
+        console.error('[FixIt] Could not notify booking participant about cancellation:', cancelNotificationError);
+      }
+
+      res.json({
+        booking: { ...booking, booking_status: 'cancelled' },
+        refundInitiated: depositRefunded || balanceRefunded,
+      });
+      return;
+    }
+
+    if (booking.booking_status === 'cancellation_pending') {
+      res.status(409).json({ error: 'This booking is being cancelled and cannot be changed.' });
+      return;
+    }
+
     if ((nextStatus === 'in_progress' || nextStatus === 'completed') && booking.payment_status !== 'paid') {
       res.status(400).json({ error: 'Booking deposit must be paid before advancing job progress.' });
+      return;
+    }
+
+    if (nextStatus === 'in_progress' && booking.booking_status !== 'confirmed') {
+      res.status(409).json({ error: 'Only confirmed bookings can be started.' });
       return;
     }
 
@@ -1146,25 +1900,62 @@ export function registerRoutes(app: Express): void {
       res.status(403).json({ error: 'Only the customer can confirm final job completion.' });
       return;
     }
+    let updated = booking;
+    let walletCredit = 0;
+    if (nextStatus === 'completed') {
+      const { data: completion, error } = await admin.rpc(
+        'complete_booking_and_credit_wallet',
+        {
+          p_booking_id: bookingId,
+          p_customer_id: userId,
+        },
+      );
+      if (error) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
 
-    const { data: updated, error } = await admin
-      .from('bookings')
-      .update({ booking_status: nextStatus })
-      .eq('id', bookingId)
-      .select('*')
-      .single();
+      const result = Array.isArray(completion) ? completion[0] : completion;
+      walletCredit = Number(result?.credited_amount || 0);
+      const { data: completedBooking, error: bookingReadError } = await admin
+        .from('bookings')
+        .select('*')
+        .eq('id', bookingId)
+        .single();
+      if (bookingReadError) {
+        res.status(500).json({ error: bookingReadError.message });
+        return;
+      }
+      updated = completedBooking;
+    } else {
+      const { data: changedBooking, error } = await admin
+        .from('bookings')
+        .update({ booking_status: nextStatus })
+        .eq('id', bookingId)
+        .eq('booking_status', 'confirmed')
+        .select('*')
+        .maybeSingle();
 
-    if (error) {
-      res.status(500).json({ error: error.message });
-      return;
-    }
+      if (error) {
+        if (error.message.includes('cancellation request is waiting for manual review')) {
+          res.status(409).json({ error: 'A cancellation request is waiting for manual review.' });
+          return;
+        }
+        res.status(500).json({ error: error.message });
+        return;
+      }
+      if (!changedBooking) {
+        res.status(409).json({ error: 'This booking changed before the status update could be applied.' });
+        return;
+      }
+      updated = changedBooking;
 
-    // Sync job status
-    if (nextStatus === 'in_progress' || nextStatus === 'completed' || nextStatus === 'cancelled') {
-      await admin
-        .from('jobs')
-        .update({ status: nextStatus })
-        .eq('id', booking.job_id);
+      if (nextStatus === 'in_progress') {
+        await admin
+          .from('jobs')
+          .update({ status: nextStatus })
+          .eq('id', booking.job_id);
+      }
     }
 
     const { data: jobRow } = await admin
@@ -1179,12 +1970,17 @@ export function registerRoutes(app: Express): void {
     await admin.from('notifications').insert({
       user_id: targetNotifyId,
       title: `Booking ${nextStatus.replace('_', ' ')}`,
-      message: `Booking for "${jobRow?.title || 'your job'}" is now marked as ${nextStatus.replace('_', ' ')}.`,
-      type: nextStatus === 'cancelled' ? 'booking_cancelled' : 'booking_status_changed',
+      message:
+        nextStatus === 'completed'
+          ? walletCredit > 0
+            ? `Booking for "${jobRow?.title || 'your job'}" is complete. ${formatNaira(walletCredit)} has been added to the worker's FixIt wallet.`
+            : `Booking for "${jobRow?.title || 'your job'}" is complete. Eligible wallet funds will be added after the remaining balance is confirmed paid.`
+          : `Booking for "${jobRow?.title || 'your job'}" is now marked as ${nextStatus.replace('_', ' ')}.`,
+      type: 'booking_status_changed',
       link: targetLink,
     });
 
-    res.json({ booking: updated });
+    res.json({ booking: updated, walletCredit });
   });
 
   // ============================================================================
@@ -1215,8 +2011,29 @@ export function registerRoutes(app: Express): void {
       res.status(403).json({ error: 'Only the booking customer can pay the deposit.' });
       return;
     }
+    if (booking.booking_status === 'cancelled' || booking.booking_status === 'cancellation_pending') {
+      res.status(409).json({ error: 'This booking is being cancelled and cannot accept a deposit payment.' });
+      return;
+    }
     if (booking.payment_status === 'paid') {
       res.status(400).json({ error: 'Deposit has already been paid for this booking.' });
+      return;
+    }
+
+    const { count: pendingPaymentCount, error: pendingPaymentError } = await admin
+      .from('payments')
+      .select('id', { count: 'exact', head: true })
+      .eq('booking_id', booking.id)
+      .eq('payment_type', 'deposit')
+      .eq('status', 'pending');
+    if (pendingPaymentError) {
+      res.status(500).json({ error: pendingPaymentError.message });
+      return;
+    }
+    if ((pendingPaymentCount || 0) > 0) {
+      res.status(409).json({
+        error: 'A deposit checkout is already in progress. Complete it or wait for it to expire before retrying.',
+      });
       return;
     }
 
@@ -1247,6 +2064,86 @@ export function registerRoutes(app: Express): void {
     }
   });
 
+  app.post(
+    '/api/payments/create-balance-checkout-session',
+    requireAuth,
+    async (req: AuthenticatedRequest, res) => {
+      const schema = z.object({ bookingId: z.string().uuid() });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: 'Valid bookingId is required.' });
+        return;
+      }
+
+      const admin = req.supabaseAdmin!;
+      const user = req.authUser!;
+      const { data: booking } = await admin
+        .from('bookings')
+        .select('*')
+        .eq('id', parsed.data.bookingId)
+        .maybeSingle();
+
+      if (!booking) {
+        res.status(404).json({ error: 'Booking not found.' });
+        return;
+      }
+      if (booking.customer_id !== user.id) {
+        res.status(403).json({ error: 'Only the booking customer can pay the remaining balance.' });
+        return;
+      }
+
+      const { data: paymentReservation, error: reservationError } = await admin.rpc(
+        'begin_online_balance_payment',
+        {
+          p_booking_id: booking.id,
+          p_customer_id: user.id,
+        },
+      );
+      if (reservationError) {
+        res.status(400).json({ error: reservationError.message });
+        return;
+      }
+      const reservedBooking = Array.isArray(paymentReservation)
+        ? paymentReservation[0]
+        : paymentReservation;
+
+      const { data: job } = await admin
+        .from('jobs')
+        .select('title')
+        .eq('id', booking.job_id)
+        .maybeSingle();
+
+      try {
+        const result = await createBalanceCheckoutSession({
+          booking: reservedBooking || booking,
+          jobTitle: job?.title || 'Service Booking',
+          customerEmail: user.email || '',
+          supabaseAdmin: admin,
+        });
+        res.json(result);
+      } catch (err: unknown) {
+        await admin
+          .from('bookings')
+          .update({ balance_payment_status: 'failed' })
+          .eq('id', booking.id)
+          .eq('balance_payment_status', 'pending');
+        const message = err instanceof Error ? err.message : 'Unable to start balance payment.';
+        if (message === 'STRIPE_NOT_CONFIGURED') {
+          res.status(503).json({
+            error: 'Stripe is not configured on the server. Set STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET.',
+            code: 'STRIPE_NOT_CONFIGURED',
+          });
+          return;
+        }
+        res.status(500).json({ error: message });
+      }
+    },
+  );
+
+  app.post('/api/bookings/:id/payout', requireAuth, async (req: AuthenticatedRequest, res) => {
+    res.status(410).json({ error: 'Per-booking payouts are no longer available. Withdraw from your FixIt wallet.' });
+  });
+
   app.get('/api/payments/booking-status', requireAuth, async (req: AuthenticatedRequest, res) => {
     const bookingId = typeof req.query.bookingId === 'string' ? req.query.bookingId : '';
     if (!bookingId) {
@@ -1259,7 +2156,7 @@ export function registerRoutes(app: Express): void {
 
     const { data: booking } = await admin
       .from('bookings')
-      .select('id, job_id, customer_id, worker_id, deposit_amount, currency, payment_status, booking_status')
+      .select('id, job_id, customer_id, worker_id, agreed_price, deposit_amount, currency, payment_status, balance_payment_status, balance_payment_method, booking_status')
       .eq('id', bookingId)
       .maybeSingle();
 
@@ -1274,7 +2171,7 @@ export function registerRoutes(app: Express): void {
 
     const { data: payments } = await admin
       .from('payments')
-      .select('id, stripe_session_id, stripe_payment_intent_id, amount, currency, display_amount_ngn, status, notes, created_at')
+      .select('id, stripe_session_id, stripe_payment_intent_id, amount, currency, display_amount_ngn, status, payment_type, notes, created_at')
       .eq('booking_id', bookingId)
       .order('created_at', { ascending: false })
       .limit(3);
