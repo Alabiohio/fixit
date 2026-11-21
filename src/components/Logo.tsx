@@ -10,8 +10,8 @@ export function Logo({ to = '/', size = 'md' }: LogoProps) {
     size === 'sm'
       ? 'text-lg'
       : size === 'lg'
-        ? 'text-2xl'
-        : 'text-xl';
+        ? 'text-3xl'
+        : 'text-3xl';
 
   return (
     <Link
